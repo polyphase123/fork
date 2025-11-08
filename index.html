@@ -1,705 +1,2144 @@
 <!DOCTYPE html>
-<html lang="en" class="">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Green Energy Auction (GEA) Program Winners</title>
+    <title>Smart Grid Simulator</title>
+    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js for dynamic graphing -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script>
+        // --- Tailwind Configuration ---
         tailwind.config = {
-            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#059669', /* Dark Emerald */
+                        'secondary': '#f97316', /* Orange */
+                        'accent-blue': '#3b82f6', /* Blue */
+                        'text-dark': '#1f2937',
+                        'bg-light': '#ffffff',
+                        'bus-good': '#10b981',
+                        'bus-low': '#fbbf24',
+                        'bus-crit': '#ef4444',
+                        'bus-fault': '#dc2626',
+                        'bus-default': '#6b7280', 
+                        'code-pass': '#10b981',
+                        'code-fail': '#ef4444',
+                        'code-fix': '#22c55e', /* Green for fixed items */
+                        'kv-138': '#4ade80', /* Green for 13.8kV */
+                        'kv-345': '#3b82f6', /* Blue for 34.5kV */
+                        'kv-69': '#f97316', /* Orange for 69kV */
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
         }
     </script>
-    
-    <!-- LeafletJS for the map -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --bg-color: #f3f4f6;
-            --card-bg-color: #ffffff;
-            --text-color: #1f2937;
-            --text-muted-color: #6b7280;
-            --border-color: #e5e7eb;
-        }
-        html.dark {
-            --bg-color: #111827;
-            --card-bg-color: #1f2937;
-            --text-color: #f9fafb;
-            --text-muted-color: #9ca3af;
-            --border-color: #374151;
-        }
+        /* Base styles and custom layout classes */
         body {
+            background-color: #f3f4f6; 
+            color: #1f2937; 
             font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            transition: background-color 0.3s, color 0.3s;
+            min-height: 100vh;
         }
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        .dark ::-webkit-scrollbar-track { background: #2d3748; }
-        ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
-        .sort-arrow { display: inline-block; margin-left: 5px; opacity: 0.5; transition: opacity 0.2s; }
-        th:hover .sort-arrow { opacity: 1; }
-        .leaflet-container { z-index: 10; }
-        .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card-bg-color); color: var(--text-color); }
-        .leaflet-popup-content { font-family: 'Inter', sans-serif; }
-        #projects-table-body tr { cursor: pointer; }
-        #project-modal { transition: opacity 0.3s ease-in-out; }
-        #project-modal-content { transition: transform 0.3s ease-in-out; }
+        /* Standard table styling */
+        .bus-result-table th, .bus-result-table td, .compliance-table th, .compliance-table td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #d1d5db;
+            font-size: 0.875rem;
+        }
+        .bus-result-table th, .compliance-table th {
+            background-color: #e5e7eb;
+            color: #4b5563;
+            font-weight: 600;
+        }
+        .config-input {
+            width: 100%; 
+            padding: 2px 4px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            text-align: right;
+            font-size: 0.75rem;
+            color: #1f2937;
+            height: 28px; /* Standardize height */
+        }
+        /* Increased height for configuration panels */
+        .config-list {
+            max-height: 550px; 
+            overflow-y: auto;
+            padding-right: 8px; 
+        }
+        
+        /* --- MODIFIED: SINGLE ROW COMPACT LAYOUT FOR LINE CONFIGURATION --- */
+        .line-item-block {
+            display: grid;
+            /* New Grid: Wire Type, R, X, From, To, Breaker, Relay, Active */
+            grid-template-columns: 2fr 0.8fr 0.8fr 0.4fr 0.4fr 1.5fr 1.5fr 0.3fr;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 0.75rem;
+            gap: 6px; /* Increased gap for separation */
+        }
+        /* Remove unused classes */
+        .line-item-row-1, .line-item-row-2 {
+            display: contents; /* Makes children participate directly in the parent grid */
+        }
+        .line-select {
+            padding: 2px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #1f2937;
+            background-color: white;
+            width: 100%;
+            height: 28px; /* Standardize height */
+        }
+        /* Fixed height for chart container to prevent layout shifting (CLS) */
+        .chart-container {
+            position: relative;
+            height: 300px; 
+        }
+
+        /* --- Custom Bubbly Button Effect --- */
+        .bubbly-button {
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .bubbly-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+        }
+        .bubbly-button:active {
+            transform: translateY(0);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+        }
+        /* SVG Container Fix for Responsiveness */
+        #svgContainer {
+            width: 100%;
+            padding-bottom: 40%; /* Aspect ratio 1000:400 */
+            position: relative;
+            overflow: hidden;
+        }
+        #networkSVG {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Ensure the SVG scales its internal content to the viewbox */
+            preserveAspectRatio: xMidYMid meet;
+        }
     </style>
 </head>
-<body class="antialiased">
+<body class="p-4 sm:p-8">
 
-    <div class="container mx-auto p-4 md:p-8">
+    <div id="app" class="max-w-6xl mx-auto">
         <!-- Header Section -->
-        <header class="text-center mb-8 relative">
-            <div id="wind-turbine" class="mx-auto mb-4 w-24 h-36 cursor-pointer" title="Click me!">
-                <svg viewBox="0 0 100 150" class="w-full h-full">
-                    <path class="text-gray-200 dark:text-gray-700" d="M 47 150 L 47 55 C 47 52, 53 52, 53 55 L 53 150 Z" fill="currentColor"/>
-                    <circle class="text-gray-300 dark:text-gray-600" cx="50" cy="50" r="8" fill="currentColor"/><circle class="text-gray-200 dark:text-gray-700" cx="50" cy="50" r="7" fill="currentColor"/>
-                    <g id="turbine-blades" style="transform-origin: 50px 50px;">
-                        <g><path class="text-gray-200 dark:text-gray-700" d="M 50 50 C 48 48, 47 20, 50 2 L 50 2 C 53 20, 52 48, 50 50 Z" fill="currentColor" stroke="#9ca3af" stroke-width="0.5"/><path d="M 50 2 C 48 5, 48 8, 50 10 C 52 8, 52 5, 50 2 Z" fill="#ef4444"/></g>
-                        <g transform="rotate(120, 50, 50)"><path class="text-gray-200 dark:text-gray-700" d="M 50 50 C 48 48, 47 20, 50 2 L 50 2 C 53 20, 52 48, 50 50 Z" fill="currentColor" stroke="#9ca3af" stroke-width="0.5"/><path d="M 50 2 C 48 5, 48 8, 50 10 C 52 8, 52 5, 50 2 Z" fill="#ef4444"/></g>
-                        <g transform="rotate(240, 50, 50)"><path class="text-gray-200 dark:text-gray-700" d="M 50 50 C 48 48, 47 20, 50 2 L 50 2 C 53 20, 52 48, 50 50 Z" fill="currentColor" stroke="#9ca3af" stroke-width="0.5"/><path d="M 50 2 C 48 5, 48 8, 50 10 C 52 8, 52 5, 50 2 Z" fill="#ef4444"/></g>
-                    </g>
-                    <circle class="text-gray-100 dark:text-gray-800" cx="50" cy="50" r="4" fill="currentColor" stroke="#6b7280" stroke-width="1"/>
-                </svg>
+        <h1 class="text-3xl font-extrabold text-text-dark mb-6 border-b-4 border-accent-blue pb-3 text-center flex items-center justify-center">
+            <svg class="w-10 h-10 mr-3 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span class="text-primary">Smart</span> Grid Simulator 
+        </h1>
+
+        <!-- Visualization and Configuration Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+            <!-- Network Topology Diagram (SVG) -->
+            <div class="lg:col-span-2 bg-white p-5 rounded-xl shadow-2xl border border-gray-100">
+                <h2 class="text-xl font-semibold text-text-dark mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-primary" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path></svg>
+                    Network Topology & Voltage Status
+                </h2>
+                <div id="svgContainer">
+                     <svg id="networkSVG"></svg>
+                </div>
+                <p id="faultBusTip" class="mt-4 text-center text-sm text-gray-500">Click a bus node to select the fault location. Current Fault Bus: <span id="currentFaultBus" class="font-bold text-red-600">10</span></p>
             </div>
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-50">Green Energy Auction (GEA) Program Winners</h1>
-            <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">Data compiled from DOE public notices for GEA-1, GEA-2, GEA-3, and GEA-4.</p>
-            <div class="absolute top-0 right-0">
-                <button id="dark-mode-toggle" class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                    <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+
+            <!-- Line Configuration Panel (Lines/N-1/DG Intermittency) -->
+            <div class="bg-white p-5 rounded-xl shadow-2xl border border-gray-100">
+                <div class="flex border-b border-gray-300 mb-4">
+                    <!-- Tab remains static as requested -->
+                    <button id="configTabLines" class="flex-1 px-3 py-2 text-md font-semibold border-b-2 border-primary text-primary transition duration-300">Wire Lines Configuration (32)</button>
+                </div>
+
+                <!-- Global Grid Controls (DG Intermittency / N-1) -->
+                <div class="p-3 mb-4 bg-gray-100 rounded-lg border border-gray-300 space-y-3">
+                     <h3 class="text-sm font-bold text-text-dark flex items-center mb-2">
+                        <svg class="w-4 h-4 mr-1 text-primary" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11 17h2v-6h-2v6zm5-14H8v2h8V3zM4 10h16v2H4v-2zm0 4h16v2H4v-2z"></path></svg>
+                        Global Grid Controls (New Features)
+                    </h3>
+                    
+                    <!-- Feature 2: DG Intermittency -->
+                    <div>
+                        <label for="dgIntermittency" class="block text-xs font-medium text-gray-700">DG Intermittency: <span id="dgIntermittencyValue" class="font-bold text-primary">100%</span> Capacity</label>
+                        <input type="range" id="dgIntermittency" min="0" max="100" value="100" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer range-lg" oninput="updateDGIntermittency(this.value)">
+                    </div>
+
+                    <!-- Feature 4: N-1 Contingency -->
+                    <div class="flex items-center space-x-3 pt-2 border-t border-gray-200">
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="nMinus1" class="sr-only peer">
+                            <div class="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-secondary"></div>
+                        </label>
+                        <span class="text-sm font-medium text-gray-700">N-1 Contingency (Trip 1 Random Line)</span>
+                    </div>
+                </div>
+
+                <!-- Line Configuration Panel Content -->
+                <div id="lineConfigPanel">
+                    <h3 class="text-lg font-semibold text-text-dark mb-3">Wire Lines</h3>
+                    <!-- HEADER MODIFIED FOR SINGLE ROW -->
+                    <div id="lineConfigHeader" class="text-xs text-gray-500 font-bold mb-1 px-1 line-item-block">
+                        <span>Wire Type</span>
+                        <span class="text-center">R (p.u.)</span>
+                        <span class="text-center">X (p.u.)</span>
+                        <span class="text-center">From</span>
+                        <span class="text-center">To</span>
+                        <span>Breaker</span>
+                        <span class="cursor-pointer font-extrabold" onclick="openCodeDetails('ANSI_CODE_EXPLANATION')">ANSI Relay</span>
+                        <span class="text-center">Active</span>
+                    </div>
+    
+                    <div id="lineConfiguration" class="config-list">
+                        <!-- Line data inserted here -->
+                    </div>
+                </div>
+
+                <button onclick="runLoadFlow()" class="bubbly-button mt-4 w-full py-3 px-4 bg-gradient-to-r from-primary to-teal-400 text-white font-extrabold rounded-xl shadow-lg hover:shadow-xl" aria-label="Run Load Flow and Compliance Check">
+                    <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0h6m-6 0h-2m8 0V7a2 2 0 00-2-2h-2a2 2 0 00-2 2v12m-2-12h4m2 0V5a2 2 0 00-2-2h-2a2 2 0 00-2 2v12m-2-12h4"></path></svg>
+                    Run Load Flow & Compliance Check
                 </button>
             </div>
-        </header>
-
-         <!-- Map Section -->
-        <div id="map" class="w-full h-96 md:h-[500px] mb-8 rounded-2xl shadow-lg border-2 border-white dark:border-gray-700"></div>
-        <p class="text-xs text-center text-gray-500 dark:text-gray-400 -mt-6 mb-8">Note: Project locations are approximate and based on publicly available information.</p>
-
-        <!-- Main Content Section -->
-        <div class="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg">
-            <!-- Filters Section -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-6">
-                <!-- Filter controls here -->
-                <div>
-                    <label for="search-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Search Project/Dev</label>
-                    <input type="text" id="search-filter" placeholder="e.g., Citicore..." class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                </div>
-                <div>
-                    <label for="gea-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by GEA Round</label>
-                    <select id="gea-filter" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                        <option value="all">All GEA Rounds</option>
-                        <option value="1">GEA-1</option>
-                        <option value="2">GEA-2</option>
-                        <option value="3">GEA-3</option>
-                        <option value="4">GEA-4</option>
-                    </select>
-                </div>
-                 <div>
-                    <label for="grid-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Grid</label>
-                    <select id="grid-filter" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                        <option value="all">All Grids</option>
-                        <option value="Luzon">Luzon</option>
-                        <option value="Visayas">Visayas</option>
-                        <option value="Mindanao">Mindanao</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="year-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Year</label>
-                    <select id="year-filter" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                        <option value="all">All Years</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="type-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Technology</label>
-                    <select id="type-filter" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                        <option value="all">All Technologies</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="developer-filter" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Filter by Developer</label>
-                    <select id="developer-filter" class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-50 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                        <option value="all">All Developers</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-                <div class="bg-blue-50 dark:bg-blue-900/50 p-4 rounded-xl flex flex-col justify-center text-center"><div class="text-sm font-medium text-blue-800 dark:text-blue-200">Total Capacity (MW)</div><div id="total-capacity" class="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">0</div></div>
-                <div class="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-xl flex flex-col justify-center text-center"><div class="text-sm font-medium text-gray-800 dark:text-gray-200">Projects Found</div><div id="project-count" class="text-2xl font-bold text-gray-900 dark:text-gray-100 mt-1">0</div></div>
-                <div class="lg:col-span-2 flex items-center justify-center gap-4">
-                     <button id="reset-filters" class="w-full h-full bg-gray-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400 transition-colors">Reset</button>
-                    <button id="export-csv" class="w-full h-full bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Export to CSV</button>
-                </div>
-            </div>
-            
-            <!-- New Charts and Leaderboard Section -->
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-                <div class="lg:col-span-2">
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2 text-center">Capacity by GEA Round (MW)</h3>
-                    <canvas id="gea-round-chart"></canvas>
-                </div>
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2 text-center">Top 5 Developers</h3>
-                    <div id="developer-leaderboard" class="space-y-2"></div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2 text-center">Technology Distribution</h3>
-                    <canvas id="tech-dist-chart"></canvas>
-                </div>
-                <div>
-                     <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2 text-center">Auction Subscription (Awarded vs Target)</h3>
-                    <canvas id="target-chart"></canvas>
-                </div>
-            </div>
-
-
-            <!-- Table Section -->
-            <div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" data-sort="gea">GEA <span class="sort-arrow">↕️</span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" data-sort="year">Year <span class="sort-arrow">↕️</span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" data-sort="grid">Grid <span class="sort-arrow">↕️</span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" data-sort="type">Technology <span class="sort-arrow">↕️</span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" data-sort="facilityName">Project Name <span class="sort-arrow">↕️</span></th><th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" data-sort="developer">Developer <span class="sort-arrow">↕️</span></th><th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer" data-sort="capacity">Capacity (MW) <span class="sort-arrow">↕️</span></th></tr></thead><tbody id="projects-table-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"></tbody></table><p id="no-results" class="text-center py-8 text-gray-500 dark:text-gray-400 hidden">No projects match the selected filters.</p></div>
         </div>
 
-        <footer class="text-center mt-8 text-sm text-gray-500 dark:text-gray-400"><p>Programmed by Engr. Franz Xyrlo I. Tobias, PEE. Data sourced from DOE public records.</p></footer>
+        <!-- Controls Panel (Load/Gen Editing) -->
+        <div class="bg-white p-5 rounded-xl shadow-2xl mb-6 grid grid-cols-1 md:grid-cols-3 gap-6 border border-gray-100">
+            <div class="md:col-span-2">
+                <h2 class="text-xl font-semibold text-text-dark mb-4 border-b border-gray-300 pb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-accent-blue" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
+                    Bus Parameter & Smart Grid Controls
+                </h2>
+                <div id="busParameterEditing" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <!-- Dynamic editing inputs inserted here -->
+                </div>
+            </div>
+            <div class="md:col-span-1 border-l border-gray-300 pl-4">
+                <h2 class="text-xl font-semibold text-text-dark mb-4 border-b border-gray-300 pb-2 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-secondary" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Short Circuit & Fault Analysis
+                </h2>
+                <div class="space-y-2">
+                    <select id="loadFlowMethod" class="w-full p-2 rounded-lg bg-gray-100 border border-gray-300 text-text-dark focus:ring-primary focus:border-primary" aria-label="Load Flow Method">
+                        <option value="NR">Newton-Raphson (NR)</option>
+                        <option value="GS">Gauss-Seidel (GS)</option>
+                    </select>
+                    <div class="flex items-center space-x-2">
+                        <select id="faultType" class="flex-1 p-2 rounded-lg bg-gray-100 border border-gray-300 text-text-dark focus:ring-secondary focus:border-secondary" aria-label="Fault Type">
+                            <option value="LLL">Three-Phase (L-L-L) Fault</option>
+                            <option value="SLG">Single-Line-to-Ground (SLG) Fault</option>
+                            <option value="LL">Line-to-Line (L-L) Fault</option>
+                            <option value="LLG">Double-Line-to-Ground (L-L-G) Fault</option>
+                        </select>
+                        <input type="number" id="faultBus" min="1" max="15" value="10" placeholder="Bus" class="w-16 p-2 rounded-lg bg-gray-100 border border-gray-300 text-text-dark text-center" onchange="selectFaultBus(parseInt(this.value))" aria-label="Fault Bus ID">
+                    </div>
+                    
+                    <!-- Feature 5: Fault Impedance -->
+                    <div class="flex items-center space-x-2">
+                        <label for="faultImpedance" class="text-xs font-medium text-gray-700 w-1/2">Fault Impedance ($Z_f$ p.u.):</label>
+                        <input type="number" id="faultImpedance" min="0" step="0.01" value="0.00" class="flex-1 p-2 rounded-lg bg-gray-100 border border-gray-300 text-text-dark text-center" aria-label="Fault Impedance">
+                    </div>
+
+                    <button onclick="runShortCircuit()" class="bubbly-button w-full py-3 px-4 bg-gradient-to-r from-secondary to-orange-400 text-white font-extrabold rounded-xl shadow-lg hover:shadow-xl" aria-label="Run Short Circuit Analysis">
+                        <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        Run Short Circuit Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Results Display Tabs -->
+        <div class="bg-white p-5 rounded-xl shadow-2xl border border-gray-100">
+            <div class="flex border-b border-gray-300 overflow-x-auto">
+                <button id="tabLF" onclick="showResults('loadFlow')" class="flex-shrink-0 px-4 py-2 text-lg font-semibold border-b-2 border-primary text-primary transition duration-300 flex items-center tab-button">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"></path></svg>
+                    Summary Load Flow
+                </button>
+                <button id="tabLFIterative" onclick="showResults('loadFlowIterative')" class="flex-shrink-0 px-4 py-2 text-lg font-semibold text-gray-500 hover:text-text-dark transition duration-300 flex items-center tab-button">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 10c-3.87 0-7 3.13-7 7h2c0-2.76 2.24-5 5-5s5 2.24 5 5h2c0-3.87-3.13-7-7-7zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"></path></svg>
+                    Iterative Data
+                </button>
+                <button id="tabSC" onclick="showResults('shortCircuit')" class="flex-shrink-0 px-4 py-2 text-lg font-semibold text-gray-500 hover:text-text-dark transition duration-300 flex items-center tab-button">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    Short Circuit
+                </button>
+                 <button id="tabCompliance" onclick="showResults('compliance')" class="flex-shrink-0 px-4 py-2 text-lg font-semibold text-gray-500 hover:text-text-dark transition duration-300 flex items-center tab-button">
+                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1 14l-4-4 1.41-1.41L11 13.17l5.59-5.59L18 9l-7 7z"></path></svg>
+                    Code Compliance
+                </button>
+            </div>
+            
+            <!-- Load Flow Summary -->
+            <div id="loadFlowResults" class="mt-4 overflow-x-auto h-[450px]">
+                <!-- Dedicated message area -->
+                <div id="lfMessage" class="text-gray-500 text-center py-10">
+                    Run the Load Flow Analysis to view voltage magnitudes and angles across the system.
+                </div>
+                
+                <!-- Load Profile / TOU Pricing Control and Cost Summary -->
+                <div class="p-4 bg-gray-100 rounded-xl shadow-inner mb-4 flex justify-between items-center flex-wrap gap-4">
+                    <div class="flex items-center space-x-3">
+                        <label for="loadProfileTime" class="text-md font-semibold text-text-dark flex items-center">
+                            <svg class="w-5 h-5 mr-1 text-secondary" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93h2c0 3.86 3.14 7 7 7V19.93z"></path></svg>
+                            Simulated Load Profile:
+                        </label>
+                        <!-- Updated to use Load Profiles and trigger an update on change -->
+                        <select id="loadProfileTime" class="p-2 rounded-lg bg-white border border-gray-300 text-text-dark focus:ring-primary focus:border-primary" onchange="updateLoadProfile(this.value)" aria-label="Select Load Profile">
+                            <option value="Morning Peak (8-10h)">Morning Peak (8-10h)</option>
+                            <option value="Midday (12-14h)">Midday (12-14h)</option>
+                            <option value="Evening Peak (18-20h)">Evening Peak (18-20h)</option>
+                            <option value="Night Low (0-6h)">Night Low (0-6h)</option>
+                        </select>
+                    </div>
+                    
+                    <div id="costSummary" class="text-lg font-bold text-text-dark">
+                        Net Operating Cost: <span id="netCostValue" class="text-gray-500 font-normal">$0.00</span>
+                    </div>
+                </div>
+                
+                <!-- Canvas for Voltage Profile Chart -->
+                <div class="p-4 bg-gray-50 rounded-xl shadow-inner mb-4">
+                    <h3 class="text-md font-semibold text-text-dark mb-2 flex items-center">
+                         <svg class="w-4 h-4 mr-1 text-accent-blue" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-4h2v4zm4 0h-2V7h2v10zm4 0h-2v-7h2v7z"></path></svg>
+                        Voltage Magnitude Profile (V p.u.)
+                    </h3>
+                    <div class="chart-container">
+                        <canvas id="voltageProfileChart" role="img" aria-label="Voltage Profile Chart"></canvas>
+                    </div>
+                </div>
+                <table id="lfTable" class="min-w-full bus-result-table hidden" role="table" aria-label="Load Flow Results Summary"></table>
+            </div>
+
+            <!-- Load Flow Iterative -->
+            <div id="loadFlowIterativeResults" class="mt-4 overflow-x-auto h-[450px] hidden">
+                 <div id="lfIterativeMessage" class="text-gray-500 text-center py-10">
+                    The step-by-step convergence data will appear here after running the Load Flow Analysis.
+                </div>
+            </div>
+
+            <!-- Short Circuit Results -->
+            <div id="shortCircuitResults" class="mt-4 hidden h-[450px]">
+                <p class="text-gray-500 text-center py-10">Run the Short Circuit Analysis after a Load Flow to view fault current and MVA.</p>
+                <table class="min-w-full text-sm short-circuit-table" role="table" aria-label="Short Circuit Analysis Results">
+                    <thead>
+                        <tr>
+                            <th class="w-1/2">Parameter</th>
+                            <th class="w-1/2">Value</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scBody">
+                        <!-- SC Results will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Code Compliance & Smart Grid Optimization Results -->
+             <div id="complianceResults" class="mt-4 hidden h-[450px] overflow-y-auto">
+                <p id="complianceMessage" class="text-gray-500 text-center py-10">
+                    Run the Load Flow to calculate system metrics against the Philippine Electrical Code (PEC) and Grid Code (PGC) simplified standards.
+                </p>
+                <!-- Optimization Summary (New Location) -->
+                <div id="optimizationSummary" class="p-4 mb-6 bg-gray-100 rounded-xl shadow-inner border border-gray-300 hidden">
+                    <h3 class="text-lg font-bold text-code-fix flex items-center mb-3">
+                         <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9 20h6v-2H9v2zm0-4h6v-2H9v2zm0-4h6V8H9v4zm9-10V5h-3V3H8v2H5v3h3v2H5v3h3v2H5v3h3v2h3v-2h3v2h3v-2h3v-3h-3v-2h3V8h-3V5h3z"></path></svg>
+                        Optimization Summary: Corrective Actions Applied
+                    </h3>
+                    <div id="summaryContent" class="text-sm space-y-2"></div>
+                </div>
+                <div id="complianceBody" class="space-y-6">
+                    <!-- Compliance and Sizing Tables will be injected here -->
+                </div>
+
+                <!-- Optimization & Action Section -->
+                <div id="optimizationSection" class="mt-8 p-4 bg-white border border-gray-200 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4 border-b pb-3">
+                        <h3 class="text-lg font-bold text-text-dark flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-yellow-600" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"></path></svg>
+                            Optimization & Action
+                        </h3>
+                         <button onclick="optimizeViolations()" id="optimizeButton" class="bubbly-button py-2 px-4 bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold rounded-xl shadow-md flex items-center disabled:opacity-50" aria-label="Optimize Violations and Re-Run">
+                            <svg class="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-8C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"></path></svg>
+                            Optimize Violations & Re-Run
+                        </button>
+                    </div>
+                    <p id="optimizationText" class="text-gray-700 text-sm"></p>
+                </div>
+            </div>
+
+        </div>
     </div>
 
-    <!-- Project Detail Modal -->
-    <div id="project-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none">
-        <div id="project-modal-content" class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform scale-95">
-            <div class="sticky top-0 bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 id="modal-title" class="text-xl font-bold text-gray-800 dark:text-gray-100">Project Details</h2>
-                <button id="modal-close-btn" class="text-gray-500 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white text-3xl">&times;</button>
+    <!-- Technical Details Modal -->
+    <div id="technicalModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-80 transition-opacity duration-300" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="flex items-center justify-center min-h-screen">
+            <div class="bg-white rounded-xl shadow-2xl p-6 m-4 max-w-lg w-full transform transition-all duration-300 scale-95" id="modalContent">
+                <div class="flex justify-between items-center border-b pb-3 mb-4">
+                    <h3 class="text-xl font-bold text-accent-blue" id="modalTitle">Technical Details</h3>
+                    <button onclick="closeModal()" class="text-gray-500 hover:text-red-500 text-2xl font-light" aria-label="Close modal">&times;</button>
+                </div>
+                <div id="modalBody" class="text-gray-700 space-y-3">
+                    <!-- Content injected here -->
+                </div>
             </div>
-            <div id="modal-body" class="p-6"></div>
         </div>
     </div>
 
 
     <script>
-        // --- DATA ---
-        const iconColors = { 
-            "ROOF-MOUNTED SOLAR": "#F59E0B", "GROUND-MOUNTED SOLAR": "#FBBF24", "FLOATING SOLAR": "#3B82F6", 
-            "ONSHORE WIND": "#A78BFA", "IRESS": "#10B981", "HYDRO": "#22D3EE", "WIND": "#67E8F9", 
-            "SOLAR": "#FACC15", "BIOMASS": "#84CC16", "IMPOUNDING HYDROPOWER": "#0EA5E9", 
-            "PUMPED-STORAGE HYDROPOWER": "#38BDF8", "GEOTHERMAL": "#F43F5E", "WASTE-TO-ENERGY": "#475569"
-        };
+        // --- GLOBAL CONSTANTS ---
+        const BASE_MVA = 100.0; // System MVA base for per-unit calculations
+        const KV_LEVELS = {
+            '69': 69.0,
+            '34.5': 34.5,
+            '13.8': 13.8
+        }; 
+        const NUM_BUSES = 15;
+        const NUM_LINES = 32;
         
-        const geaTargets = {
-            1: { total: 2000 }, // GEA-1 had a simple 2000 MW total target.
-            2: { total: 11600, byYear: { 2024: 3600, 2025: 3600, 2026: 4400 }}, // GEA-2 targets from NOA
-            3: { total: 4425, byTech: { "GEOTHERMAL": 100, "IMPOUNDING HYDROPOWER": 300, "PUMPED-STORAGE HYDROPOWER": 4250, "RUN-OF-RIVER": 75 }}, // GEA-3 from NOA, incl. supplement
-            4: { total: 9378 } // Simplified for now, can be broken down later if needed.
+        // --- FEATURE 1: LOAD PROFILES & TOU PRICING ---
+        const LOAD_PROFILES = {
+            'Morning Peak (8-10h)': { 
+                Ind: 1.2, Com: 1.1, Res: 0.9, rate: 'Peak', 
+                description: 'High commercial/industrial ramp-up, residential plateau.' 
+            },
+            'Midday (12-14h)':      { 
+                Ind: 0.9, Com: 1.0, Res: 0.8, rate: 'Off-Peak', 
+                description: 'Moderate loads, good solar generation time.' 
+            },
+            'Evening Peak (18-20h)': { 
+                Ind: 1.0, Com: 1.2, Res: 1.5, rate: 'Peak', 
+                description: 'Highest residential and commercial cooling/lighting loads.' 
+            },
+            'Night Low (0-6h)':     { 
+                Ind: 0.8, Com: 0.6, Res: 0.5, rate: 'Off-Peak', 
+                description: 'Minimum system load, industrial steady state.' 
+            }
         };
+        const TOU_RATES = {
+            'Peak': 0.20,     // USD per MWH (Simulated)
+            'Off-Peak': 0.08, // USD per MWH
+            'DG_Credit': 0.15 // DG export rate 
+        };
+        let CURRENT_LOAD_PROFILE = 'Morning Peak (8-10h)'; // Default profile
+        let DG_CAPACITY_FACTOR = 1.0; // Feature 2: DG Intermittency (1.0 = 100%)
 
-        const projects = [
-            // GEA-1 Winners (Awarded June 2022, delivery year estimated as 2024)
-            { id: 1001, gea: 1, year: 2024, grid: "Luzon", type: "HYDRO", facilityName: "Kapangan Hydroelectric Power Project", developer: "Cordillera Hydroelectric Power Corporation", capacity: 60.000, lat: 16.5333, lon: 120.7833 },
-            { id: 1002, gea: 1, year: 2024, grid: "Luzon", type: "HYDRO", facilityName: "Sablan 1 Hydroelectric Power Project", developer: "Hedcor, Inc.", capacity: 20.000, lat: 16.4500, lon: 120.5167 },
-            { id: 1003, gea: 1, year: 2024, grid: "Luzon", type: "SOLAR", facilityName: "PAVI Green Naga Solar Power Plant Project", developer: "PAVI Green Renewable Energy, Inc.", capacity: 40.400, lat: 13.6214, lon: 123.1842 },
-            { id: 1004, gea: 1, year: 2024, grid: "Luzon", type: "SOLAR", facilityName: "Talugtug Solar Power Project", developer: "Greenergy Solutions Inc.", capacity: 99.980, lat: 15.7556, lon: 120.8039 },
-            { id: 1005, gea: 1, year: 2024, grid: "Luzon", type: "SOLAR", facilityName: "Concepcion Tarlac 2 Solar Power Project", developer: "Solar Philippines Commercial Rooftop Projects, Inc.", capacity: 200.000, lat: 15.326, lon: 120.658 },
-            { id: 1006, gea: 1, year: 2024, grid: "Luzon", type: "SOLAR", facilityName: "Santa Rosa Nueva Ecija 2 Solar Power Project", developer: "Solar Philippines Nueva Ecija Corporation", capacity: 280.000, lat: 15.4833, lon: 120.9667 },
-            { id: 1007, gea: 1, year: 2024, grid: "Luzon", type: "SOLAR", facilityName: "Tayabas Solar Power Project", developer: "Solar Philippines Commercial Rooftop Projects, Inc.", capacity: 450.000, lat: 14.024, lon: 121.593 },
-            { id: 1008, gea: 1, year: 2024, grid: "Luzon", type: "WIND", facilityName: "Caparispisan II Wind Power Project", developer: "Amihan Renewable Energy Corp.", capacity: 70.000, lat: 18.5722, lon: 120.7675 },
-            { id: 1009, gea: 1, year: 2024, grid: "Luzon", type: "WIND", facilityName: "Calatagan Wind Power Project", developer: "Solar Philippines Calatagan Corporation", capacity: 30.000, lat: 13.8294, lon: 120.6358 },
-            { id: 1010, gea: 1, year: 2024, grid: "Luzon", type: "WIND", facilityName: "Balaoi and Caunayan Wind Power Project", developer: "Bayog Wind Power Corp.", capacity: 160.000, lat: 18.6333, lon: 120.7500 },
-            { id: 1011, gea: 1, year: 2024, grid: "Luzon", type: "WIND", facilityName: "Kalayaan 2 Wind Power Project", developer: "CleanTech Global Renewables, Inc.", capacity: 100.800, lat: 14.40, lon: 121.55 },
-            { id: 1012, gea: 1, year: 2024, grid: "Visayas", type: "SOLAR", facilityName: "Kananga-Ormoc Solar Power Project", developer: "Solar Philippines Visayas Corporation", capacity: 300.000, lat: 11.1667, lon: 124.5667 },
-            { id: 1013, gea: 1, year: 2024, grid: "Visayas", type: "WIND", facilityName: "Nabas 2 Wind Power Project", developer: "Petrowind Energy, Inc.", capacity: 13.200, lat: 11.8833, lon: 121.9500 },
-            { id: 1014, gea: 1, year: 2024, grid: "Mindanao", type: "HYDRO", facilityName: "Malitbog Hydroelectric Power Project", developer: "Philnewriver Power Corporation", capacity: 3.700, lat: 8.0833, lon: 124.7833 },
-            { id: 1015, gea: 1, year: 2024, grid: "Mindanao", type: "HYDRO", facilityName: "Silo-O Hydroelectric Power Project", developer: "Philnewriver Power Corporation", capacity: 3.700, lat: 8.6167, lon: 124.7833 },
-            { id: 1016, gea: 1, year: 2024, grid: "Mindanao", type: "HYDRO", facilityName: "Mat-l 1 Hydroelectric Power Project", developer: "Philnew Hydro Power Corporation", capacity: 4.850, lat: 8.1333, lon: 124.8167 },
-            { id: 1017, gea: 1, year: 2024, grid: "Mindanao", type: "HYDRO", facilityName: "Clarin Hydroelectric Power Project", developer: "Philnew Hydro Power Corporation", capacity: 6.900, lat: 8.2167, lon: 123.8500 },
-            { id: 1018, gea: 1, year: 2024, grid: "Mindanao", type: "BIOMASS", facilityName: "10MW -Biomass Cogeneration Plant", developer: "Cotabato Sugar Central Company, Inc.", capacity: 3.400, lat: 7.0167, lon: 124.4833 },
-            { id: 1019, gea: 1, year: 2024, grid: "Mindanao", type: "SOLAR", facilityName: "General Santos Solar Power Project", developer: "Solar Philippines Commercial Rooftop Projects, Inc.", capacity: 120.000, lat: 6.1167, lon: 125.1667 },
-            
-            // GEA-2 Winners (Incomplete list based on public news, Awarded July 2023)
-            { id: 2001, gea: 2, year: 2024, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Citicore Solar Project GEA2-1", developer: "Citicore Renewable Energy Corporation", capacity: 435.58, lat: 15.32, lon: 120.65 },
-            { id: 2002, gea: 2, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Citicore Solar Project GEA2-2", developer: "Citicore Renewable Energy Corporation", capacity: 119, lat: 15.14, lon: 120.97 },
-            { id: 2003, gea: 2, year: 2026, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Citicore Wind Project GEA2", developer: "Citicore Renewable Energy Corporation", capacity: 362, lat: 14.60, lon: 121.57 },
-            { id: 2004, gea: 2, year: 2025, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Tanay Wind Power Project", developer: "Alternergy Tanay Wind Corp.", capacity: 86.000, lat: 14.6000, lon: 121.3833 },
-            { id: 2005, gea: 2, year: 2026, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Alabat Island Wind Power Project", developer: "Alternergy Tanay Wind Corp.", capacity: 55.000, lat: 14.1000, lon: 122.0667 },
-            { id: 2006, gea: 2, year: 2025, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Tarlac Solar Project", developer: "Liberty Solar Energy Corp.", capacity: 67.000, lat: 15.4833, lon: 120.6000 },
-            { id: 2007, gea: 2, year: 2026, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "NKS Solar One Project", developer: "NKS Solar One Inc.", capacity: 90.000, lat: 14.24, lon: 121.18 },
-            
-            // GEA-3 Winners (Awarded June 2025)
-            { id: 3001, gea: 3, year: 2028, grid: "Luzon", type: "IMPOUNDING HYDROPOWER", facilityName: "Gened 1 Hydroelectric Power Project", developer: "Pan Pacific Renewable Power Phils. Corp.", capacity: 150.000, lat: 17.91, lon: 121.28 },
-            { id: 3002, gea: 3, year: 2029, grid: "Luzon", type: "IMPOUNDING HYDROPOWER", facilityName: "Gened 2 Hydroelectric Power Project", developer: "Pan Pacific Renewable Power Phils. Corp.", capacity: 150.000, lat: 17.95, lon: 121.25 },
-            { id: 3003, gea: 3, year: 2028, grid: "Luzon", type: "PUMPED-STORAGE HYDROPOWER", facilityName: "Kibungan Pumped Storage Hydroelectric Power Project", developer: "Coheco Badeo Corporation", capacity: 500.000, lat: 16.65, lon: 120.73 },
-            { id: 3004, gea: 3, year: 2029, grid: "Luzon", type: "PUMPED-STORAGE HYDROPOWER", facilityName: "Wawa Pumped Storage 1 Hydroelectric Power", developer: "Olympia Violago Water and Power, Inc.", capacity: 600.000, lat: 14.69, lon: 121.18 },
-            { id: 3005, gea: 3, year: 2030, grid: "Luzon", type: "PUMPED-STORAGE HYDROPOWER", facilityName: "Pakil Pumped Storage Hydroelectric Power Project", developer: "Ahunan Power, Inc.", capacity: 1400.000, lat: 14.40, lon: 121.48 },
-            { id: 3006, gea: 3, year: 2031, grid: "Luzon", type: "PUMPED-STORAGE HYDROPOWER", facilityName: "San Roque Lower East Pumped Storage Hydroelectric Power Project", developer: "San Roque Hydropower Inc.", capacity: 800.000, lat: 16.08, lon: 120.68 },
-            { id: 3007, gea: 3, year: 2032, grid: "Luzon", type: "PUMPED-STORAGE HYDROPOWER", facilityName: "San Roque West Pumped Storage Hydroelectric Power Project", developer: "San Roque Hydropower Inc.", capacity: 800.000, lat: 16.09, lon: 120.67 },
-            { id: 3008, gea: 3, year: 2032, grid: "Luzon", type: "PUMPED-STORAGE HYDROPOWER", facilityName: "Maton Pumped Storage Hydroelectric Power Project", developer: "Pan Pacific Renewable Power Phils. Corp.", capacity: 2000.000, lat: 17.80, lon: 121.20 },
-            { id: 3009, gea: 3, year: 2031, grid: "Visayas", type: "PUMPED-STORAGE HYDROPOWER", facilityName: "Aklan Pumped Storage Hydroelectric Power Project", developer: "San Roque Hydropower Inc.", capacity: 250.000, lat: 11.60, lon: 122.25 },
-            { id: 3010, gea: 3, year: 2025, grid: "Mindanao", type: "GEOTHERMAL", facilityName: "Mindanao 3 Binary Geothermal Power Plant Expansion Project Phase 3 - Unit 1", developer: "Energy Development Corporation", capacity: 3.669, lat: 7.18, lon: 125.10 },
-            { id: 3011, gea: 3, year: 2026, grid: "Luzon", type: "GEOTHERMAL", facilityName: "Tanawon Geothermal Power Plant - Unit 1", developer: "Bac-Man Geothermal Inc.", capacity: 21.573, lat: 13.04, lon: 123.91 },
-            { id: 3012, gea: 3, year: 2027, grid: "Visayas", type: "GEOTHERMAL", facilityName: "Bago Binary Geothermal Power Plant Unit 1", developer: "Energy Development Corporation", capacity: 5.645, lat: 10.55, lon: 123.01 },
 
-            // --- GEA-4 Winners (NEW DATA FROM PDF) ---
-            // Note: Year assigned based on project type and common delivery phasing in GEA rounds.
-            // Lat/Lon are reused from previous GEA4 data when project names match.
+        // PEC/PGC (Simplified) Constants for Compliance Checks
+        const MAX_VOLTAGE_DROP_PERCENT = 3.0;
+        const VOLTAGE_LIMIT_MIN = 0.95; 
+        const BREAKER_SAFETY_MARGIN = 1.25; 
+        const HARMONIC_LIMIT_THD = 5.0; 
 
-            // GROUND-MOUNTED SOLAR (ID 4001 - 4058)
-            { id: 4001, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Castilla Solar Power Plant", developer: "Equator Energy Corporation", capacity: 39.984, lat: 12.964, lon: 123.871 },
-            { id: 4002, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Ecopark Isla Solar Power Plant", developer: "Ecopark Energy of Valenzuela Corp.", capacity: 4.035, lat: 14.73, lon: 120.98 },
-            { id: 4003, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Ecopark Tagalag Solar Power Plant", developer: "Ecopark Energy of Valenzuela Corp.", capacity: 14.700, lat: 14.75, lon: 120.97 },
-            { id: 4004, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Pagbilao 3 Solar Project; Phase 1", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.972, lon: 121.753 },
-            { id: 4005, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Pagbilao 3 Solar Power Project; Phase 2", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.972, lon: 121.753 },
-            { id: 4006, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "San Lorenzo Ruiz Solar Power Plant", developer: "East Cornerstone Development Corp.", capacity: 5.000, lat: 14.125, lon: 122.842 },
-            { id: 4007, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Capantolan Solar Power Project", developer: "Pacific Impact Energy Corp.", capacity: 42.000, lat: 16.071, lon: 120.095 },
-            { id: 4008, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Magahis Power Plant Project; Phase I", developer: "Tuy Solar Power Corporation", capacity: 170.000, lat: 14.024, lon: 120.731 },
-            { id: 4009, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Bolbok 4 Solar Power Project; Phase 1", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4010, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Luntal Solar Power Project", developer: "Citicore Solar Batangas 1, Inc.", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4011, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Bolbok 5 Solar Power Project; Phase 2", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4012, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Lumbangan Solar Power Project", developer: "Citicore Solar Batangas 1, Inc.", capacity: 90.000, lat: 13.8121, lon: 121.2626 },
-            { id: 4013, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Bolbok 5 Solar Power Project; Phase1", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4014, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Bolbok 5 Solar Power Project; Phase 3", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4015, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Bolbok 4 Solar Power Project; Phase 2", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4016, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Bolbok 4 Solar Power Project Phase 3", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4017, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Bataan Solar Power Project", developer: "Tai Yang 1 Power Inc.", capacity: 16.500, lat: 14.8302, lon: 120.5086 },
-            { id: 4018, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Sual Solar Power Plant", developer: "Renovable Earth Corp.", capacity: 33.000, lat: 16.071, lon: 120.095 },
-            { id: 4019, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Sapang Balen Solar 2 Power Project", developer: "Sapang Balen Solar Sustainable Energy Corp.", capacity: 90.000, lat: 15.2310, lon: 120.5447 },
-            { id: 4020, gea: 4, year: 2026, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Ground Mounted Solar PV Project; Phase 1", developer: "San Ignacio Energy Resources Development Corporation", capacity: 96.473, lat: 17.1311, lon: 121.8845 },
-            { id: 4021, gea: 4, year: 2027, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Atimonan Solar Power Project", developer: "Bolo Renewable Energy Corp.", capacity: 50.000, lat: 14.004, lon: 121.916 },
-            { id: 4022, gea: 4, year: 2027, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Ultra Solar Power Plant Project", developer: "Bolo Renewable Energy Corp.", capacity: 68.000, lat: 14.012, lon: 121.905 },
-            { id: 4023, gea: 4, year: 2027, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Cauayan Solar Power Project; Phase 1", developer: "SMC Global Light and Power Corp.", capacity: 270.000, lat: 16.95, lon: 121.80 },
-            { id: 4024, gea: 4, year: 2027, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "San Vicente Solar Power Project", developer: "Citadel Energy Corporation", capacity: 140.000, lat: 14.115, lon: 122.885 },
-            { id: 4025, gea: 4, year: 2027, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Villaverde Ground-Mounted Solar-Photovoltaic Project", developer: "Verde Radiant Power Corporation", capacity: 11.840, lat: 16.513, lon: 121.012 },
-            { id: 4026, gea: 4, year: 2027, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Libmanan Solar Power Project", developer: "Green PV Energy Corporation", capacity: 49.900, lat: 13.692, lon: 123.064 },
-            { id: 4027, gea: 4, year: 2027, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Sta. Ignacia Tarlac Solar Power Plant Project Phase 1", developer: "Sta. Ignacia Tarlac Solar Power Corporation", capacity: 18.000, lat: 15.613, lon: 120.442 },
-            { id: 4028, gea: 4, year: 2028, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Cauayan Solar Power Project; Phase 2", developer: "SMC Global Light and Power Corp.", capacity: 630.000, lat: 16.95, lon: 121.80 },
-            { id: 4029, gea: 4, year: 2028, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Solar Power Project; Phase 1-3", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 16.90, lon: 121.75 },
-            { id: 4030, gea: 4, year: 2028, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Solar Power Project; Phase 1-2", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 16.90, lon: 121.75 },
-            { id: 4031, gea: 4, year: 2029, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Solar Power Project; Phase 3-2", developer: "Citicore Renewable Energy Corporation", capacity: 40.000, lat: 16.90, lon: 121.75 },
-            { id: 4032, gea: 4, year: 2028, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Solar Power Project; Phase 2-3", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 16.90, lon: 121.75 },
-            { id: 4033, gea: 4, year: 2028, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Solar Power Project; Phase 2-2", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 16.90, lon: 121.75 },
-            { id: 4034, gea: 4, year: 2029, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Solar Power Project: Phase 3-1", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 16.90, lon: 121.75 },
-            { id: 4035, gea: 4, year: 2028, grid: "Luzon", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabela Solar Power Project; Phase 2-1", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 16.90, lon: 121.75 },
-            { id: 4036, gea: 4, year: 2026, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Sikatuna Solar Power Project", developer: "Bohol Solar Energy Inc.", capacity: 37.884, lat: 9.6824, lon: 123.9870 },
-            { id: 4037, gea: 4, year: 2026, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Vista Alegre Solar Power Project", developer: "Amatera Renewable Energy Corporation", capacity: 50.100, lat: 10.7770, lon: 123.0149 },
-            { id: 4038, gea: 4, year: 2026, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Daanbantayan Solar Power Project", developer: "Freya Renewables Inc.", capacity: 150.000, lat: 11.261, lon: 124.025 },
-            { id: 4039, gea: 4, year: 2027, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Earthlight Concepcion Solar Power Project; Phase 1", developer: "Joy-Nostalg Solaris Incorporated", capacity: 30.400, lat: null, lon: null }, // Lat/Lon mismatch with Visayas corrected to null
-            { id: 4040, gea: 4, year: 2027, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Zamboanguita Solar Power Project", developer: "Zamboanguita Solar Power Corporation", capacity: 50.000, lat: 9.156, lon: 123.205 },
-            { id: 4041, gea: 4, year: 2027, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "San Miguel Solar Power Project", developer: "Sunpalo Solar Energy, Inc.", capacity: 150.000, lat: null, lon: null }, // Lat/Lon mismatch with Visayas corrected to null
-            { id: 4042, gea: 4, year: 2027, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Cadiz 1 Solar Power Plant", developer: "Basic Energy Corporation", capacity: 43.410, lat: null, lon: null },
-            { id: 4043, gea: 4, year: 2028, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Victorias Solar Power Plant", developer: "Victorias Green Energy Corp.", capacity: 85.000, lat: 10.91, lon: 123.06 },
-            { id: 4044, gea: 4, year: 2028, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Earthlight San Fernando Barotac Viejo Solar Power Project; Phase 1", developer: "Joy-Nostalg Solaris Incorporated", capacity: 55.500, lat: 11.052, lon: 122.953 },
-            { id: 4045, gea: 4, year: 2028, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Ajuy 1 Solar Power Project; Phase 2", developer: "Joy-Nostalg Solaris Incorporated", capacity: 23.967, lat: 11.173, lon: 123.024 },
-            { id: 4046, gea: 4, year: 2028, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Viejo Iloilo Solar Power Project", developer: "JICA Power and Development Corporation", capacity: 158.400, lat: 11.052, lon: 122.953 },
-            { id: 4047, gea: 4, year: 2028, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Ilog Solar Power Project", developer: "Western Visayas Solar Energy Corp.", capacity: 140.100, lat: 10.142, lon: 122.776 },
-            { id: 4048, gea: 4, year: 2028, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Bohol Solar Power Project", developer: "Bohol Renewable Power Corp. (Isla Este Renewables Corporation)", capacity: 17.500, lat: 9.85, lon: 124.46 },
-            { id: 4049, gea: 4, year: 2028, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Isabel Solar Power Plant", developer: "Urban Energy Development Corp.", capacity: 76.650, lat: null, lon: null },
-            { id: 4050, gea: 4, year: 2029, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Earthlight San Fernando Barotac Viejo Solar Power Project; Phase 2", developer: "Joy-Nostalg Solaris Incorporated", capacity: 55.500, lat: 11.052, lon: 122.953 },
-            { id: 4051, gea: 4, year: 2029, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Dagohoy Solar Power Project", developer: "Dagohoy Green Energy Corporation", capacity: 20.160, lat: 9.943, lon: 124.235 },
-            { id: 4052, gea: 4, year: 2029, grid: "Visayas", type: "GROUND-MOUNTED SOLAR", facilityName: "Panitan Solar Power Project", developer: "EcoSolar Energy Corporation", capacity: 70.080, lat: 11.385, lon: 122.793 },
-            { id: 4053, gea: 4, year: 2026, grid: "Mindanao", type: "GROUND-MOUNTED SOLAR", facilityName: "Pagayawan Solar Power Plant Project", developer: "Pagayawan Renewable Energy Corp.", capacity: 20.000, lat: 7.824, lon: 124.402 },
-            { id: 4054, gea: 4, year: 2026, grid: "Mindanao", type: "GROUND-MOUNTED SOLAR", facilityName: "Malita Solar Power Project; Phase 1", developer: "SMC Global Light and Power Corp.", capacity: 108.000, lat: 6.3935, lon: 125.6168 },
-            { id: 4055, gea: 4, year: 2027, grid: "Mindanao", type: "GROUND-MOUNTED SOLAR", facilityName: "Malita Solar Power Project; Phase 2", developer: "SMC Global Light and Power Corp.", capacity: 27.000, lat: 6.3935, lon: 125.6168 },
-            { id: 4056, gea: 4, year: 2027, grid: "Mindanao", type: "GROUND-MOUNTED SOLAR", facilityName: "SPPC Solar Power Project (Phase 1)", developer: "Alabel Solar Energy Corporation", capacity: 30.000, lat: 6.103, lon: 125.286 },
-            { id: 4057, gea: 4, year: 2028, grid: "Mindanao", type: "GROUND-MOUNTED SOLAR", facilityName: "Malita Solar Power Project; Phase 3", developer: "SMC Global Light and Power Corp.", capacity: 30.000, lat: 6.3935, lon: 125.6168 },
-            { id: 4058, gea: 4, year: 2029, grid: "Mindanao", type: "GROUND-MOUNTED SOLAR", facilityName: "Malita Solar Power Project; Phase 4", developer: "SMC Global Light and Power Corp.", capacity: 120.000, lat: 6.3935, lon: 125.6168 },
-
-            // ROOF-MOUNTED SOLAR (ID 4059 - 4062)
-            { id: 4059, gea: 4, year: 2026, grid: "Luzon", type: "ROOF-MOUNTED SOLAR", facilityName: "Naic Solar Rooftop Power Project", developer: "Joy-Nostalg Solaris Incorporated", capacity: 4.950, lat: 14.321, lon: 120.765 },
-            { id: 4060, gea: 4, year: 2026, grid: "Luzon", type: "ROOF-MOUNTED SOLAR", facilityName: "Ning Ning Muzon-Labac Rooftop Solar Power Project", developer: "Joy-Nostalg Solaris Incorporated", capacity: 10.497, lat: 13.784, lon: 121.052 },
-            { id: 4061, gea: 4, year: 2027, grid: "Luzon", type: "ROOF-MOUNTED SOLAR", facilityName: "Ning Ning Catmon Sta. Maria Rooftop Solar Power Project", developer: "Joy-Nostalg Solaris Incorporated", capacity: 4.019, lat: 14.814, lon: 120.963 },
-            { id: 4062, gea: 4, year: 2027, grid: "Luzon", type: "ROOF-MOUNTED SOLAR", facilityName: "Ning Ning Dolores Magalang Rooftop Solar Power Project", developer: "Joy-Nostalg Solaris Incorporated", capacity: 5.353, lat: 15.223, lon: 120.661 },
-
-            // FLOATING SOLAR (ID 4063 - 4082)
-            { id: 4063, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Magat Floating Solar Power Project", developer: "Sn Aboitiz Power - Magat, Inc", capacity: 50.000, lat: 16.795, lon: 121.463 },
-            { id: 4064, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Cabuyao 2 Floating PV Power Plant", developer: "Nortesol Incorporated", capacity: 72.000, lat: 14.305, lon: 121.151 },
-            { id: 4065, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Cabuyao 1 Floating PV Power Plant", developer: "Nortesol II Inc.", capacity: 72.000, lat: 14.302, lon: 121.148 },
-            { id: 4066, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Calamba Floating PV Solar Power Project", developer: "Nortesol Incorporated", capacity: 72.000, lat: 14.240, lon: 121.180 },
-            { id: 4067, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Cabuyao 3 Floating PV Power Plant", developer: "NortesolIV, Inc.", capacity: 72.000, lat: 14.299, lon: 121.153 },
-            { id: 4068, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Victoria 1 Floating PV Power Plant,", developer: "NortesolIV, Inc.", capacity: 72.000, lat: 14.230, lon: 121.230 },
-            { id: 4069, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Bay 2 Floating PV Power Plant", developer: "NortesolIV, Inc.", capacity: 72.000, lat: 14.202, lon: 121.282 },
-            { id: 4070, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Cabuyao 5 Floating PV Power Plant", developer: "NEWASIA POWER ENERGY II CORP.", capacity: 72.000, lat: 14.308, lon: 121.145 },
-            { id: 4071, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Cabuyao 4 Floating Solar PV Power Plant", developer: "NEWASIA POWER ENERGY CORP.", capacity: 72.000, lat: 14.296, lon: 121.156 },
-            { id: 4072, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Bay 1 Floating PV Power Plant", developer: "Newasia Power Energy Corp.", capacity: 72.000, lat: 14.199, lon: 121.279 },
-            { id: 4073, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Sta. Rosa Floating PV Power Plant", developer: "Newasia Power Energy II Corp.", capacity: 72.000, lat: 14.330, lon: 121.120 },
-            { id: 4074, gea: 4, year: 2027, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Macabebe Floating PV Power Plant", developer: "NEWASIA POWER ENERGY III CORP.", capacity: 95.000, lat: 14.85, lon: 120.68 },
-            { id: 4075, gea: 4, year: 2028, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Angat Solar Power Project; Phase 1", developer: "SMC Global Light and Power Corp.", capacity: 540.000, lat: 14.912, lon: 121.053 },
-            { id: 4076, gea: 4, year: 2028, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "San Marcelino Floating Solar Power Project", developer: "Northern Sun Radiance Inc.", capacity: 130.000, lat: 14.98, lon: 120.20 },
-            { id: 4077, gea: 4, year: 2028, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Liberty Solar Power Project; Phase B", developer: "Liberty Solar Energy Corporation", capacity: 34.000, lat: null, lon: null },
-            { id: 4078, gea: 4, year: 2028, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Liberty Solar Power Project; Phase A", developer: "Liberty Solar Energy Corporation", capacity: 34.000, lat: null, lon: null },
-            { id: 4079, gea: 4, year: 2028, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "NKS One Floating Solar Power Project; Phase 2", developer: "NKS Solar One Inc.", capacity: 47.000, lat: null, lon: null },
-            { id: 4080, gea: 4, year: 2029, grid: "Luzon", type: "FLOATING SOLAR", facilityName: "Angat Solar Power Project; Phase 2", developer: "SMC Global Light and Power Corp.", capacity: 500.000, lat: 14.912, lon: 121.053 },
-            { id: 4081, gea: 4, year: 2028, grid: "Visayas", type: "FLOATING SOLAR", facilityName: "Sagay Solar on Water PV Power Plant", developer: "LakeSun Energy Inc.", capacity: 70.000, lat: 10.95, lon: 123.45 },
-            { id: 4082, gea: 4, year: 2028, grid: "Visayas", type: "FLOATING SOLAR", facilityName: "Silay Solar on Water PV Power Plant", developer: "Limnelios Inc.", capacity: 64.000, lat: 10.80, lon: 122.98 },
-
-            // IRESS (ID 4083 - 4102)
-            { id: 4083, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Bolbok 3 Solar Power Project; Phase 1", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4084, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Bolbok 3 Solar Power Project Phase 2", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4085, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Botolan Solar PV Power Plant", developer: "Iligansolar, Inc", capacity: 40.000, lat: null, lon: null },
-            { id: 4086, gea: 4, year: 2028, grid: "Luzon", type: "IRESS", facilityName: "Talingaan-Laoag Solar Power Project", developer: "North Luzon Green Power, Inc.", capacity: 100.000, lat: 18.195, lon: 120.593 },
-            { id: 4087, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Pagbilao 4 Solar Power Project; Phase 2", developer: "Citicore Renewable Energy Corporation", capacity: 25.000, lat: null, lon: null },
-            { id: 4088, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Pagbilao 4 Solar Power Project; Phase 1", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: null, lon: null },
-            { id: 4089, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Sapang Balen Solar 1 - North Power Project", developer: "Sapang Balen Solar Sustainable Energy Corp", capacity: 80.000, lat: null, lon: null },
-            { id: 4090, gea: 4, year: 2029, grid: "Luzon", type: "IRESS", facilityName: "Currimao Solar Power Project", developer: "Northern Sun Power, Inc.", capacity: 190.000, lat: 18.062, lon: 120.485 },
-            { id: 4091, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Bolbok 3 Solar Power Project; Phase 3", developer: "Citicore Renewable Energy Corporation", capacity: 50.000, lat: 13.9687, lon: 120.7276 },
-            { id: 4092, gea: 4, year: 2027, grid: "Luzon", type: "IRESS", facilityName: "Sapang Balen Solar 2 - North Power Project", developer: "Sapang Balen Solar Sustainable Energy Corp", capacity: 80.000, lat: null, lon: null },
-            { id: 4093, gea: 4, year: 2027, grid: "Visayas", type: "IRESS", facilityName: "Silay 2D Solar Power Project; Phase 1", developer: "Citicore Renewable Energy Corporation", capacity: 35.710, lat: 10.7442, lon: 123.0739 },
-            { id: 4094, gea: 4, year: 2027, grid: "Visayas", type: "IRESS", facilityName: "Barotac Viejo Solar Power Project", developer: "Magallanes Solar Energy Corp.", capacity: 67.000, lat: 11.052, lon: 122.953 },
-            { id: 4095, gea: 4, year: 2027, grid: "Visayas", type: "IRESS", facilityName: "Silay 2C Solar Power Project; Phase 1", developer: "Citicore Renewable Energy Corporation", capacity: 38.000, lat: 10.7442, lon: 123.0739 },
-            { id: 4096, gea: 4, year: 2027, grid: "Visayas", type: "IRESS", facilityName: "Silay 2C Solar Power Project; Phase 2", developer: "Citicore Renewable Energy Corporation", capacity: 33.420, lat: 10.7442, lon: 123.0739 },
-            { id: 4097, gea: 4, year: 2028, grid: "Visayas", type: "IRESS", facilityName: "Luca Solar Power Project; Phase 2", developer: "Apolaki Eight Inc.", capacity: 13.380, lat: null, lon: null },
-            { id: 4098, gea: 4, year: 2028, grid: "Visayas", type: "IRESS", facilityName: "Luna Solar Power Project", developer: "South Cleanergy Inc.", capacity: 120.000, lat: null, lon: null }, // Lat/Lon mismatch with Visayas corrected to null
-            { id: 4099, gea: 4, year: 2027, grid: "Mindanao", type: "IRESS", facilityName: "Tantangan Solar Power Project; Phase 2", developer: "Apolaki Seven Inc.", capacity: 13.380, lat: 6.5717, lon: 124.7641 },
-            { id: 4100, gea: 4, year: 2027, grid: "Mindanao", type: "IRESS", facilityName: "Titan V Solar Power Project; Phase 1", developer: "Apolaki Four Inc.", capacity: 49.700, lat: null, lon: null }, // Lat/Lon mismatch with Mindanao corrected to null
-            { id: 4101, gea: 4, year: 2028, grid: "Mindanao", type: "IRESS", facilityName: "Kalandagan Solar Power Project", developer: "Olympia Solar Power Corporation", capacity: 54.000, lat: 6.783, lon: 124.596 },
-            { id: 4102, gea: 4, year: 2028, grid: "Mindanao", type: "IRESS", facilityName: "Titan V Solar Power Project; Phase 2", developer: "Apolaki Four Inc.", capacity: 49.700, lat: null, lon: null }, // Lat/Lon mismatch with Mindanao corrected to null
-
-            // ONSHORE WIND (ID 4103 - 4123)
-            { id: 4103, gea: 4, year: 2028, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Quezon North Wind Power Project (Phase 3)", developer: "GIGA ACE 6, Inc.", capacity: 230.000, lat: null, lon: null },
-            { id: 4104, gea: 4, year: 2026, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Kalayaan 2 Wind Power Project", developer: "Laguna Wind Energy Corp.", capacity: 100.800, lat: 14.40, lon: 121.55 },
-            { id: 4105, gea: 4, year: 2026, grid: "Luzon", type: "ONSHORE WIND", facilityName: "South Eastern Wind Power Project", developer: "Econergy Renewable Power Philippines Inc.", capacity: 49.990, lat: 12.91, lon: 124.12 },
-            { id: 4106, gea: 4, year: 2027, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Sorsogon 2 Wind Power Project", developer: "Econergy Renewable Power Philippines Inc.", capacity: 200.000, lat: 12.973, lon: 124.008 },
-            { id: 4107, gea: 4, year: 2027, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Presentacion 2 Wind Power Project", developer: "Wind Renewable Energy Corporation", capacity: 49.500, lat: 13.842, lon: 123.635 },
-            { id: 4108, gea: 4, year: 2027, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Quezon Wind Power Project (Phase 2)", developer: "Quezon Wind Energy Corp.", capacity: 208.000, lat: 14.75, lon: 121.58 },
-            { id: 4109, gea: 4, year: 2028, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Pagsanjan Wind Project", developer: "Envision Energy Philippines Corporation", capacity: 200.000, lat: 14.35, lon: 121.55 },
-            { id: 4110, gea: 4, year: 2028, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Tayabas North Wind Energy Project (Phase 1)", developer: "CleanTech Global Renewables, Inc.", capacity: 96.000, lat: 14.024, lon: 121.593 },
-            { id: 4111, gea: 4, year: 2028, grid: "Luzon", type: "ONSHORE WIND", facilityName: "San Nicolas Wind Power Project", developer: "San Nicolas Wind Corp.", capacity: 200.000, lat: 18.172, lon: 120.735 },
-            { id: 4112, gea: 4, year: 2029, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Calabanga Wind Project", developer: "Envision Energy Philippines Corporation", capacity: 200.000, lat: 13.75, lon: 123.20 },
-            { id: 4113, gea: 4, year: 2029, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Quezon Wind Power Project (Phase 1)", developer: "Atimonan Windkraft Corporation", capacity: 67.000, lat: 14.004, lon: 121.916 },
-            { id: 4114, gea: 4, year: 2029, grid: "Luzon", type: "ONSHORE WIND", facilityName: "Ilosong Wind Power Project (Phase 1)", developer: "Ilosong Wind Corp.", capacity: 200.000, lat: 13.58, lon: 124.23 },
-            { id: 4115, gea: 4, year: 2028, grid: "Visayas", type: "ONSHORE WIND", facilityName: "Bohol 2 Anda Wind Power Project (Phase 1)", developer: "Blue Haven Windkraft Corporation", capacity: 50.000, lat: null, lon: null },
-            { id: 4116, gea: 4, year: 2027, grid: "Visayas", type: "ONSHORE WIND", facilityName: "Northern Wind Power Project", developer: "Econergy Renewable Power Philippines Inc.", capacity: 100.000, lat: 12.00, lon: 125.00 },
-            { id: 4117, gea: 4, year: 2027, grid: "Visayas", type: "ONSHORE WIND", facilityName: "Cauayan Wind Project", developer: "Envision Energy Philippines Corporation", capacity: 50.000, lat: null, lon: null }, // Lat/Lon mismatch with Visayas corrected to null
-            { id: 4118, gea: 4, year: 2028, grid: "Visayas", type: "ONSHORE WIND", facilityName: "Alegria Wind Power Project", developer: "MC Project Solutions Inc.", capacity: 56.000, lat: 9.774, lon: 123.362 },
-            { id: 4119, gea: 4, year: 2028, grid: "Visayas", type: "ONSHORE WIND", facilityName: "Lavezares Wind Project", developer: "Envision Energy Philippines Corporation", capacity: 50.000, lat: 12.553, lon: 124.336 },
-            { id: 4120, gea: 4, year: 2028, grid: "Visayas", type: "ONSHORE WIND", facilityName: "Leyte Wind Project", developer: "Envision Energy Philippines Corporation", capacity: 110.000, lat: 10.05, lon: 125.25 },
-            { id: 4121, gea: 4, year: 2029, grid: "Visayas", type: "ONSHORE WIND", facilityName: "Bais Wind Project", developer: "Envision Energy Philippines Corporation", capacity: 150.000, lat: 9.60, lon: 123.08 },
-            { id: 4122, gea: 4, year: 2029, grid: "Mindanao", type: "ONSHORE WIND", facilityName: "Caraga Wind Power Project Phase 1", developer: "Caraga Wind Energy Corporation", capacity: 101.000, lat: 9.82, lon: 125.50 },
-            { id: 4123, gea: 4, year: 2029, grid: "Mindanao", type: "ONSHORE WIND", facilityName: "Caraga Wind Power Project Phase 2", developer: "Caraga Wind Energy Corporation", capacity: 50.000, lat: 9.82, lon: 125.50 }
+        // Expanded Component Models 
+        const BREAKER_MODELS = [
+            'GE SF6 VCB (40kA)', 'ABB VCB (31.5kA)', 'Siemens OCB (25kA)', 'Schneider Vacuum (20kA)',
+            'Mitsubishi VCB (50kA)', 'Hitachi VCB (35kA)', 'Eaton VCP (18kA)', 'Hyundai HVC (40kA)',
+            'Toshiba OCB (12.5kA)', 'Chint VCB (31.5kA)', 'Areva DT1 (25kA)', 'GE ML17 (50kA)',
+            'ABB HPL 72 (40kA)', 'Siemens 3AP (50kA)', 'Schneider LF (25kA)' 
         ];
+        const ANSI_RELAYS = [
+            'No Protection',
+            '50/51 (Inst/Time Ovr Current)',
+            '79 (Reclosing)',
+            '21 (Distance)',
+            '67 (Directional Ovr Current)',
+            '87 (Differential)',
+            '81 (Frequency)',
+        ];
+        const LOAD_TYPES = {
+            'Industrial': { pf: 0.85, thd_avg: 7.0 },
+            'Commercial': { pf: 0.90, thd_avg: 4.0 },
+            'Residential': { pf: 0.95, thd_avg: 2.5 }
+        };
         
-        // --- DOM ELEMENTS ---
-        const searchFilter = document.getElementById('search-filter');
-        const geaFilter = document.getElementById('gea-filter');
-        const gridFilter = document.getElementById('grid-filter');
-        const yearFilter = document.getElementById('year-filter');
-        const typeFilter = document.getElementById('type-filter');
-        const developerFilter = document.getElementById('developer-filter');
-        const exportBtn = document.getElementById('export-csv');
-        const resetBtn = document.getElementById('reset-filters');
-        const tableBody = document.getElementById('projects-table-body');
-        const totalCapacityEl = document.getElementById('total-capacity');
-        const projectCountEl = document.getElementById('project-count');
-        const noResultsEl = document.getElementById('no-results');
-        const tableHeaders = document.querySelectorAll('th[data-sort]');
-        const projectModal = document.getElementById('project-modal');
-        const projectModalContent = document.getElementById('project-modal-content');
-        const modalCloseBtn = document.getElementById('modal-close-btn');
-        const modalTitle = document.getElementById('modal-title');
-        const modalBody = document.getElementById('modal-body');
-        const darkModeToggle = document.getElementById('dark-mode-toggle');
-        const sunIcon = document.getElementById('sun-icon');
-        const moonIcon = document.getElementById('moon-icon');
-        const developerLeaderboardEl = document.getElementById('developer-leaderboard');
+        // --- ACSR Data omitted for brevity but remains in the code ---
+        const ACSR_TYPES = [
+            { name: "TURKEY (6 AWG)", R_DC: 2.1499, X_R_ratio: 3.5, code: "TURKEY", ampacity: 90 },
+            { name: "SWAN (4 AWG)", R_DC: 1.3501, X_R_ratio: 4.5, code: "SWAN", ampacity: 120 },
+            { name: "SPARROW (2 AWG)", R_DC: 0.8512, X_R_ratio: 5.5, code: "SPARROW", ampacity: 155 },
+            { name: "ROBIN (1 AWG)", R_DC: 0.6742, X_R_ratio: 7, code: "ROBIN", ampacity: 175 },
+            { name: "RAVEN (1/0 AWG)", R_DC: 0.5343, X_R_ratio: 7.5, code: "RAVEN", ampacity: 200 },
+            { name: "QUAIL (2/0 AWG)", R_DC: 0.4247, X_R_ratio: 8, code: "QUAIL", ampacity: 225 },
+            { name: "PIGEON (3/0 AWG)", R_DC: 0.3359, X_R_ratio: 9, code: "PIGEON", ampacity: 260 },
+            { name: "PENGUIN (4/0 AWG)", R_DC: 0.2667, X_R_ratio: 10, code: "PENGUIN", ampacity: 300 },
+            { name: "FLICKER (266.8 MCM)", R_DC: 0.2112, X_R_ratio: 11, code: "FLICKER", ampacity: 335 },
+            { name: "OWL (266.8 MCM)", R_DC: 0.2112, X_R_ratio: 11, code: "OWL", ampacity: 335 },
+            { name: "LINNET (336.4 MCM)", R_DC: 0.1693, X_R_ratio: 12, code: "LINNET", ampacity: 380 },
+            { name: "TRUSH (336.4 MCM)", R_DC: 0.1688, X_R_ratio: 12, code: "TRUSH", ampacity: 380 },
+            { name: "DIN 550/70", R_DC: 0.0526, X_R_ratio: 25, code: "DIN550", ampacity: 380 }, 
+            { name: "WAXA (397.7 MCM)", R_DC: 0.1430, X_R_ratio: 13, code: "WAXA", ampacity: 420 },
+            { name: "CHICKADEE (397.7 MCM)", R_DC: 0.1430, X_R_ratio: 13, code: "CHICKADEE", ampacity: 420 },
+            { name: "PELICAN (477 MCM)", R_DC: 0.1186, X_R_ratio: 14, code: "PELICAN", ampacity: 470 },
+            { name: "HAWK (556.5 MCM)", R_DC: 0.1017, X_R_ratio: 15, code: "HAWK", ampacity: 510 },
+            { name: "OSPREY (556.5 MCM)", R_DC: 0.1017, X_R_ratio: 15, code: "OSPREY", ampacity: 510 },
+            { name: "PEACOCK (605 MCM)", R_DC: 0.0943, X_R_ratio: 15, code: "PEACOCK", ampacity: 550 },
+            { name: "DOVE (636 MCM)", R_DC: 0.0890, X_R_ratio: 16, code: "DOVE", ampacity: 575 },
+            { name: "PARTRIDGE (636 MCM)", R_DC: 0.0890, X_R_ratio: 16, code: "PARTRIDGE", ampacity: 575 },
+            { name: "KINGBIRD (636 MCM)", R_DC: 0.0890, X_R_ratio: 16, code: "KINGBIRD", ampacity: 575 },
+            { name: "FLAMINGO (666.6 MCM)", R_DC: 0.0856, X_R_ratio: 16, code: "FLAMINGO", ampacity: 600 },
+            { name: "STILT (715.5 MCM)", R_DC: 0.0795, X_R_ratio: 17, code: "STILT", ampacity: 630 },
+            { name: "TERN (795 MCM)", R_DC: 0.0715, X_R_ratio: 18, code: "TERN", ampacity: 675 },
+            { name: "CRANE (874.5 MCM)", R_DC: 0.0649, X_R_ratio: 19, code: "CRANE", ampacity: 720 },
+            { name: "CARDINAL (954 MCM)", R_DC: 0.0596, X_R_ratio: 20, code: "CARDINAL", ampacity: 765 },
+            { name: "REDWING (1033.5 MCM)", R_DC: 0.0547, X_R_ratio: 21, code: "REDWING", ampacity: 800 },
+            { name: "BLUEBIRD (1113 MCM)", R_DC: 0.0515, X_R_ratio: 22, code: "BLUEBIRD", ampacity: 840 },
+            { name: "ORIOLE (1192.5 MCM)", R_DC: 0.0480, X_R_ratio: 23, code: "ORIOLE", ampacity: 880 },
+            { name: "LAPWING (1590 MCM)", R_DC: 0.0359, X_R_ratio: 24, code: "LAPWING", ampacity: 990 },
+            { name: "GRACKLE (1780 MCM)", R_DC: 0.0320, X_R_ratio: 25, code: "GRACKLE", ampacity: 1050 },
+        ].sort((a, b) => a.ampacity - b.ampacity); 
+        
+        // --- DATA STORAGE ---
+        let busData = [];
+        let lineData = [];
+        let lfResults = null;
+        let lfIterativeData = [];
+        let selectedFaultBus = 10;
+        let busCoordinates = [];
+        let voltageChartInstance = null; 
+        
+        let systemCosts = { totalLoadCost: 0, totalGenCredit: 0, netCost: 0, time: CURRENT_LOAD_PROFILE };
+        
+        let optimizationTrack = {
+            preViolations: 0,
+            preAvgV: 1.0,
+            wireUpgrades: [],
+            dgActions: [],
+            drActions: [],
+            capActions: [], // New tracking for capacitor bank actions
+            hasRun: false
+        };
+        
+        // Stored initial line configuration for N-1 reset
+        let originalLineData = [];
+        
+        // --- CORE UTILITY FUNCTIONS ---
 
-        // --- STATE & INSTANCES ---
-        let sortState = { column: 'year', direction: 'asc' };
-        let map, markerLayer;
-        let currentFilteredProjects = [];
-        let geaRoundChart, techDistChart, targetChart;
-
-        // --- FUNCTIONS ---
-
-        function initMap() {
-            map = L.map('map').setView([12.8797, 121.7740], 6);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-            markerLayer = L.layerGroup().addTo(map);
+        /**
+         * Updates the simulated Load Profile (which sets P/Q multipliers and TOU rate).
+         */
+        function updateLoadProfile(profileName) {
+            CURRENT_LOAD_PROFILE = profileName;
+            document.getElementById('loadProfileTime').value = profileName;
         }
 
-        function updateMap(projectList) {
-            markerLayer.clearLayers();
-            projectList.forEach(project => {
-                if (project.lat && project.lon) {
-                    const iconHtml = `<div style="background-color: ${iconColors[project.type] || '#888'};" class="w-4 h-4 rounded-full border-2 border-white shadow-md"></div>`;
-                    const customIcon = L.divIcon({ html: iconHtml, className: 'custom-map-icon', iconSize: [16, 16], iconAnchor: [8, 8] });
-                    const popupContent = `<div class="font-sans"><div class="font-bold text-base mb-1">${project.facilityName} (GEA-${project.gea})</div><div class="text-sm text-gray-600">${project.developer}</div><hr class="my-2"><div class="text-xs"><strong>Capacity:</strong> ${formatNumber(project.capacity, 3)} MW<br><strong>Technology:</strong> ${project.type}</div></div>`;
-                    const marker = L.marker([project.lat, project.lon], { icon: customIcon }).bindPopup(popupContent);
-                    markerLayer.addLayer(marker);
+        /**
+         * Updates the DG Intermittency factor (Feature 2).
+         */
+        function updateDGIntermittency(value) {
+            DG_CAPACITY_FACTOR = parseFloat(value) / 100.0;
+            document.getElementById('dgIntermittencyValue').textContent = `${value}%`;
+        }
+
+        /**
+         * Calculates the base impedance (Z_base) for a given voltage level in Ohms.
+         */
+        function calculateZBase(kvLevel) {
+            return (kvLevel * kvLevel) / BASE_MVA;
+        }
+
+        /**
+         * Finds the smallest conductor size (by code) that meets the required ampacity.
+         */
+        function findRecommendedWireCode(requiredAmpacity, currentWireCode) {
+            const currentIndex = ACSR_TYPES.findIndex(t => t.code === currentWireCode);
+            let nextWire = null;
+            if (currentIndex !== -1 && ACSR_TYPES[currentIndex].ampacity >= requiredAmpacity) {
+                return currentWireCode;
+            }
+
+            for (let i = 0; i < ACSR_TYPES.length; i++) {
+                 if (ACSR_TYPES[i].ampacity >= requiredAmpacity) {
+                    nextWire = ACSR_TYPES[i].code;
+                    break; 
                 }
-            });
-        }
-
-        function zoomToGrid(grid) {
-            const gridViews = { Luzon: [[15.5, 121], 7], Visayas: [[10.7, 123.5], 8], Mindanao: [[7.8, 125], 7], all: [[12.8797, 121.7740], 6] };
-            if(map && gridViews[grid]) { map.flyTo(...gridViews[grid]); }
-        }
-
-        function showProjectModal(projectId) {
-            // Find the project within the currently filtered list to handle non-unique IDs when filtering by GEA round
-            const project = currentFilteredProjects.find(p => p.id === projectId) || projects.find(p => p.id === projectId && p.gea == geaFilter.value);
-            if (!project) return;
-            modalTitle.textContent = project.facilityName;
-            modalBody.innerHTML = `<div class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm"><div><dt class="text-gray-500 dark:text-gray-400">GEA Round</dt><dd class="text-gray-900 dark:text-gray-100 font-bold">GEA-${project.gea}</dd></div><div><dt class="text-gray-500 dark:text-gray-400">Target Year</dt><dd class="text-gray-900 dark:text-gray-100 font-medium">${project.year}</dd></div><div><dt class="text-gray-500 dark:text-gray-400">Developer</dt><dd class="text-gray-900 dark:text-gray-100 font-medium">${project.developer}</dd></div><div><dt class="text-gray-500 dark:text-gray-400">Grid</dt><dd class="text-gray-900 dark:text-gray-100 font-medium">${project.grid}</dd></div><div><dt class="text-gray-500 dark:text-gray-400">Technology</dt><dd class="text-gray-900 dark:text-gray-100 font-medium">${project.type}</dd></div><div><dt class="text-gray-500 dark:text-gray-400">Awarded Capacity</dt><dd class="text-gray-900 dark:text-gray-100 font-medium">${formatNumber(project.capacity)} MW</dd></div></div>`;
-            projectModal.classList.remove('opacity-0', 'pointer-events-none');
-            projectModalContent.classList.remove('scale-95');
-        }
-
-        function hideProjectModal() {
-            projectModal.classList.add('opacity-0', 'pointer-events-none');
-            projectModalContent.classList.add('scale-95');
-        }
-
-        function formatNumber(value, digits = 3) { return new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value); }
-        
-        function renderTable(projectList) {
-            tableBody.innerHTML = '';
-            noResultsEl.classList.toggle('hidden', projectList.length > 0);
-            projectList.forEach(project => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50 dark:hover:bg-gray-700';
-                row.dataset.projectId = project.id;
-                row.dataset.projectGea = project.gea; // Use GEA as secondary identifier
-                row.innerHTML = `<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">GEA-${project.gea}</td><td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">${project.year}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${project.grid}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">${project.type}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 max-w-xs truncate" title="${project.facilityName}">${project.facilityName}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title="${project.developer}">${project.developer}</td><td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100 font-medium text-right">${formatNumber(project.capacity)}</td>`;
-                tableBody.appendChild(row);
-            });
-        }
-        
-        function updateDashboard(projectList) {
-            totalCapacityEl.textContent = formatNumber(projectList.reduce((sum, p) => sum + p.capacity, 0), 2);
-            projectCountEl.textContent = projectList.length;
-        }
-
-        function populateFilters() {
-            // Populate Years
-            const years = [...new Set(projects.map(p => p.year))].sort((a,b) => a-b);
-            yearFilter.innerHTML = '<option value="all">All Years</option>';
-            years.forEach(year => yearFilter.add(new Option(year, year)));
-
-            // Populate Types
-            const types = [...new Set(projects.map(p => p.type))].sort();
-            typeFilter.innerHTML = '<option value="all">All Technologies</option>';
-            types.forEach(type => typeFilter.add(new Option(type, type)));
+            }
             
-            // Populate Developers
-            const developers = [...new Set(projects.map(p => p.developer))].sort();
-            developerFilter.innerHTML = '<option value="all">All Developers</option>';
-            developers.forEach(dev => developerFilter.add(new Option(dev, dev)));
+            if (!nextWire) {
+                return ACSR_TYPES[ACSR_TYPES.length - 1].code;
+            }
+            return nextWire;
         }
 
-        function updateCharts(projectList) {
-            const isDarkMode = document.documentElement.classList.contains('dark');
-            const textColor = isDarkMode ? '#f9fafb' : '#1f2937';
-            Chart.defaults.color = textColor;
 
-            // --- Technology Distribution (Donut Chart) ---
-            const dataByTech = projectList.reduce((acc, p) => { acc[p.type] = (acc[p.type] || 0) + p.capacity; return acc; }, {});
-            const techLabels = Object.keys(dataByTech).sort();
-            const techData = techLabels.map(label => dataByTech[label]);
-            const techColors = techLabels.map(label => iconColors[label] || '#888');
-            if(techDistChart) techDistChart.destroy();
-            techDistChart = new Chart(document.getElementById('tech-dist-chart').getContext('2d'), { 
-                type: 'doughnut', 
-                data: { labels: techLabels, datasets: [{ data: techData, backgroundColor: techColors, borderColor: isDarkMode ? '#1f2937' : '#fff' }] },
-                options: { responsive: true, plugins: { legend: { position: 'top' } } }
-            });
+        // --- SIMULATION CORE ---
 
-            // --- Capacity by GEA Round (Stacked Bar Chart) ---
-            const allTechs = [...new Set(projects.map(p => p.type))].sort();
-            const geaRounds = [1, 2, 3, 4];
-            const geaDatasets = allTechs.map(tech => {
-                return {
-                    label: tech,
-                    data: geaRounds.map(round => {
-                        return projectList
-                            .filter(p => p.gea === round && p.type === tech)
-                            .reduce((sum, p) => sum + p.capacity, 0);
-                    }),
-                    backgroundColor: iconColors[tech] || '#888'
-                };
-            });
-            if(geaRoundChart) geaRoundChart.destroy();
-            geaRoundChart = new Chart(document.getElementById('gea-round-chart').getContext('2d'), {
-                type: 'bar',
-                data: { labels: ['GEA-1', 'GEA-2', 'GEA-3', 'GEA-4'], datasets: geaDatasets },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: true } }, // Show legend here
-                    scales: { x: { stacked: true }, y: { stacked: true, ticks: { callback: value => `${value} MW` } } }
+        /**
+         * Simulates the Load Flow process.
+         */
+        function loadFlow(method) {
+            lfIterativeData = []; 
+            
+            // --- Feature 4: N-1 Contingency Logic ---
+            let trippedLine = null;
+            const isContingencyEnabled = document.getElementById('nMinus1').checked;
+            let tempOriginalLineData = JSON.parse(JSON.stringify(originalLineData)); 
+            
+            if (isContingencyEnabled) {
+                const activeLines = lineData.filter(l => l.active);
+                if (activeLines.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * activeLines.length);
+                    trippedLine = activeLines[randomIndex];
+                    // Temporarily set this line to inactive for the simulation
+                    lineData.find(l => l.id === trippedLine.id).active = false;
+                    console.warn(`N-1 Contingency: Line ${trippedLine.from}-${trippedLine.to} (ID: ${trippedLine.id}) tripped.`);
                 }
-            });
-
-            // --- Target vs Awarded Chart (Only use full project list for this comparison) ---
-            const awardedByGea = geaRounds.map(round => projects.filter(p => p.gea === round).reduce((sum, p) => sum + p.capacity, 0));
-            const targets = geaRounds.map(round => geaTargets[round].total || 0);
-            if(targetChart) targetChart.destroy();
-            targetChart = new Chart(document.getElementById('target-chart').getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: ['GEA-1', 'GEA-2', 'GEA-3', 'GEA-4'],
-                    datasets: [
-                        { label: 'Awarded (MW)', data: awardedByGea, backgroundColor: '#4ade80' },
-                        { label: 'Target (MW)', data: targets, backgroundColor: '#f87171' }
-                    ]
-                },
-                options: { responsive: true, indexAxis: 'y', scales: { x: { ticks: { callback: value => `${value} MW` } } } }
-            });
-        }
-
-        function updateLeaderboard(projectList) {
-            const dataByDev = projectList.reduce((acc, p) => { acc[p.developer] = (acc[p.developer] || 0) + p.capacity; return acc; }, {});
-            const sortedDevs = Object.entries(dataByDev).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            }
             
-            let html = '';
-            if (sortedDevs.length === 0) {
-                html = `<div class="text-center text-gray-500 dark:text-gray-400 p-4">No developers found.</div>`;
-            } else {
-                sortedDevs.forEach(([name, capacity], index) => {
-                    html += `<div class="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                                <div class="flex items-center min-w-0">
-                                    <span class="text-sm font-bold text-gray-600 dark:text-gray-300 w-6">${index + 1}.</span>
-                                    <p class="text-sm font-medium text-gray-800 dark:text-gray-100 truncate" title="${name}">${name}</p>
-                                </div>
-                                <p class="text-sm font-bold text-indigo-600 dark:text-indigo-400 flex-shrink-0 ml-2">${formatNumber(capacity, 2)} MW</p>
-                            </div>`;
+            let totalZ_active = 0;
+            lineData.filter(line => line.active).forEach(line => { totalZ_active += line.Z_pu; });
+            
+            const systemImpedanceFactor = totalZ_active > 0 ? totalZ_active / (NUM_LINES) : 1.0; 
+            const MAX_ITERATIONS = (method === 'NR') ? 4 : 8; 
+            
+            let V_current = busData.map(b => b.V_result);
+            let delta_current = busData.map(b => b.delta);
+            const profile = LOAD_PROFILES[CURRENT_LOAD_PROFILE];
+
+            // Update system state based on features (DG Intermittency, Load Profile, Capacitor Banks)
+            busData.forEach((bus) => {
+                
+                // 1. Feature 1: Apply Load Profile Multipliers
+                let multiplier = 1.0;
+                if (bus.load_type === 'Industrial') multiplier = profile.Ind;
+                if (bus.load_type === 'Commercial') multiplier = profile.Com;
+                if (bus.load_type === 'Residential') multiplier = profile.Res;
+
+                bus.P_load = bus.P_load_base * multiplier;
+                bus.Q_load = bus.Q_load_base * multiplier;
+                
+                // 2. DG Status, Feature 2 (Intermittency), and Q-Mode update
+                if (bus.DG_status === 'On') {
+                    // P_gen scales with DG_CAPACITY_FACTOR (Intermittency)
+                    bus.P_gen = bus.DG_capacity * DG_CAPACITY_FACTOR;
+                    
+                    // Q_gen logic
+                    if (bus.DG_Q_mode === 'Boost V') {
+                        bus.Q_gen = bus.DG_capacity * 0.2; 
+                    } else if (bus.DG_Q_mode === 'Absorb Q') {
+                        bus.Q_gen = -bus.DG_capacity * 0.1; 
+                    } else {
+                        bus.Q_gen = 0.0; 
+                    }
+                } else if (bus.DG_status === 'Off' || bus.DG_status === 'N/A') {
+                    bus.P_gen = 0.0;
+                    bus.Q_gen = 0.0;
+                }
+                
+                // 3. Feature 3: Capacitor Bank/VAR Compensation (Adds to Q_gen)
+                if (bus.capacitor_mvar > 0) {
+                    // Capacitor MVAR is in actual MVAR. Convert to p.u. (MVAR / BASE_MVA)
+                    bus.Q_gen += (bus.capacitor_mvar / BASE_MVA);
+                }
+                
+                // 4. Demand Response (DR)
+                if (bus.DR_enabled && bus.DR_reduction > 0) {
+                    const reduction = Math.min(bus.DR_reduction, bus.P_load_base * 0.5);
+                    bus.P_load -= reduction;
+                    bus.Q_load -= (reduction * 0.5); 
+                } 
+                
+                // THD calculation based on final load factor
+                const loadBase = bus.P_load_base * multiplier + bus.Q_load_base * multiplier;
+                const loadCurrent = bus.P_load + bus.Q_load;
+
+                const loadingFactor = loadBase > 0 ? loadCurrent / loadBase : 1.0;
+                bus.thd_value = parseFloat((bus.thd_base * loadingFactor * 0.8).toFixed(2));
+            });
+            
+            let P_bus_base = busData.map(b => b.P_load - b.P_gen);
+            let Q_bus_base = busData.map(b => b.Q_load - b.Q_gen);
+            
+            // ... (Iterative Solution Loop - simplified NR/GS, as before) ...
+            
+            // Save initial values (Iteration 0)
+            lfIterativeData.push({
+                iteration: 0,
+                method: method,
+                data: busData.map(b => ({ id: b.id, V: b.V_result, delta: b.delta, }))
+            });
+
+            // Iterative Solution Loop
+            for (let k = 1; k <= MAX_ITERATIONS; k++) {
+                let V_next = [...V_current];
+                let delta_next = [...delta_current];
+                
+                busData.forEach((bus, i) => {
+                    if (bus.type === 'Slack') { 
+                        V_next[i] = 1.000;
+                        delta_next[i] = 0.00;
+                        return;
+                    }
+                    
+                    const P_mismatch = P_bus_base[i] + bus.P_gen - 1.0; 
+                    const Q_mismatch = Q_bus_base[i] - bus.Q_gen;
+
+                    let correctionFactor = (method === 'NR') ? 0.3 : 0.15;
+                    correctionFactor *= (MAX_ITERATIONS - k + 1) / MAX_ITERATIONS; 
+                    
+                    let dV = -(P_mismatch * 0.05 + Q_mismatch * 0.01) * correctionFactor;
+                    let dDelta = -(P_mismatch * 0.02 - Q_mismatch * 0.03) * correctionFactor * 10;
+                    
+                    if (bus.type === 'PV') {
+                         V_next[i] = bus.V; 
+                         delta_next[i] = delta_current[i] + dDelta;
+                    } else { 
+                         V_next[i] = V_current[i] + dV;
+                         delta_next[i] = delta_current[i] + dDelta;
+                    }
+                    
+                    V_next[i] = parseFloat(Math.max(0.80, Math.min(1.05, V_next[i])).toFixed(4));
+                    delta_next[i] = parseFloat(delta_next[i].toFixed(4));
+                });
+                
+                V_current = V_next;
+                delta_current = delta_next;
+
+                // Store iteration results
+                lfIterativeData.push({
+                    iteration: k,
+                    method: method,
+                    data: busData.map((b, i) => ({ id: b.id, V: V_current[i], delta: delta_current[i] }))
                 });
             }
-            developerLeaderboardEl.innerHTML = html;
-        }
 
-        function applyFiltersAndSort() {
-            const searchTerm = searchFilter.value.toLowerCase();
-            const selectedGea = geaFilter.value;
-            const selectedGrid = gridFilter.value;
-            const selectedYear = yearFilter.value;
-            const selectedType = typeFilter.value;
-            const selectedDeveloper = developerFilter.value;
-
-            currentFilteredProjects = projects.filter(p => 
-                (searchTerm === '' || p.facilityName.toLowerCase().includes(searchTerm) || p.developer.toLowerCase().includes(searchTerm)) &&
-                (selectedGea === 'all' || p.gea == selectedGea) &&
-                (selectedGrid === 'all' || p.grid === selectedGrid) &&
-                (selectedYear === 'all' || p.year == selectedYear) &&
-                (selectedType === 'all' || p.type === selectedType) &&
-                (selectedDeveloper === 'all' || p.developer === selectedDeveloper)
-            );
-
-            currentFilteredProjects.sort((a, b) => { let comp = 0; if (a[sortState.column] > b[sortState.column]) comp = 1; else if (a[sortState.column] < b[sortState.column]) comp = -1; else { 
-                // Secondary sort by GEA round for stability if primary column values are equal
-                if (a.gea > b.gea) comp = 1; else if (a.gea < b.gea) comp = -1;
-            } return sortState.direction === 'desc' ? comp * -1 : comp; });
-            
-            renderTable(currentFilteredProjects);
-            updateDashboard(currentFilteredProjects);
-            updateCharts(currentFilteredProjects);
-            updateMap(currentFilteredProjects);
-            updateLeaderboard(currentFilteredProjects);
-        }
-
-        function resetFilters() {
-            searchFilter.value = ''; geaFilter.selectedIndex = 0; gridFilter.selectedIndex = 0; yearFilter.selectedIndex = 0; typeFilter.selectedIndex = 0; developerFilter.selectedIndex = 0;
-            sortState = { column: 'year', direction: 'asc' };
-            applyFiltersAndSort();
-            zoomToGrid('all');
-        }
-
-        function exportToCsv() {
-            const headers = ["ID", "GEA", "Year", "Grid", "Technology", "Project Name", "Developer", "Capacity (MW)", "Latitude", "Longitude"];
-            const rows = currentFilteredProjects.map(p => [ p.id, p.gea, p.year, p.grid, p.type, `"${p.facilityName.replace(/"/g, '""')}"`, `"${p.developer.replace(/"/g, '""')}"`, p.capacity, p.lat || '', p.lon || '' ].join(','));
-            const csv = "data:text/csv;charset=utf-8," + [headers.join(',')].concat(rows).join('\n');
-            const link = document.createElement("a");
-            link.setAttribute("href", encodeURI(csv));
-            link.setAttribute("download", "gea_data_export.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // --- DARK MODE ---
-        function setDarkMode(isDark) {
-            if (isDark) {
-                document.documentElement.classList.add('dark');
-                sunIcon.classList.add('hidden');
-                moonIcon.classList.remove('hidden');
-            } else {
-                document.documentElement.classList.remove('dark');
-                sunIcon.classList.remove('hidden');
-                moonIcon.classList.add('hidden');
-            }
-            // Re-render charts for color update
-            // We call applyFiltersAndSort() here to re-render everything, including charts.
-            applyFiltersAndSort(); 
-        }
-
-        darkModeToggle.addEventListener('click', () => {
-            const isDark = document.documentElement.classList.contains('dark');
-            localStorage.setItem('darkMode', !isDark);
-            setDarkMode(!isDark);
-        });
-
-        // --- EVENT LISTENERS ---
-        [searchFilter, geaFilter, yearFilter, typeFilter, developerFilter].forEach(el => el.addEventListener('input', applyFiltersAndSort));
-        gridFilter.addEventListener('change', () => { applyFiltersAndSort(); zoomToGrid(gridFilter.value); });
-        exportBtn.addEventListener('click', exportToCsv);
-        resetBtn.addEventListener('click', resetFilters);
-        tableHeaders.forEach(header => header.addEventListener('click', () => {
-            const column = header.dataset.sort;
-            // Clear current sort indicators
-            tableHeaders.forEach(h => {
-                const arrow = h.querySelector('.sort-arrow');
-                if (arrow) arrow.textContent = '↕️';
+            // Final results update & Voltage Drop Calculation
+            busData.forEach((bus, i) => {
+                bus.V_result = V_current[i];
+                bus.delta = delta_current[i];
+                bus.voltage_drop_percent = parseFloat(((bus.V - bus.V_result) * 100).toFixed(2)); 
             });
 
-            // Update sort state
-            sortState.direction = (sortState.column === column && sortState.direction === 'asc') ? 'desc' : 'asc';
-            sortState.column = column;
-            
-            // Update sort indicator
-            const currentArrow = header.querySelector('.sort-arrow');
-            if (currentArrow) currentArrow.textContent = sortState.direction === 'asc' ? '⬆️' : '⬇️';
-
-            applyFiltersAndSort();
-        }));
-        tableBody.addEventListener('click', (event) => {
-            const row = event.target.closest('tr');
-            if (row && row.dataset.projectId) {
-                const projectId = parseInt(row.dataset.projectId);
-                // Since IDs can be duplicated across GEA rounds (especially GEA-4), 
-                // we rely on the row's data to find the specific project in the *current filtered list*
-                const projectToView = currentFilteredProjects.find(p => p.id == projectId && p.gea == row.dataset.projectGea);
-                if (projectToView) showProjectModal(projectToView.id);
+            // --- N-1 Cleanup ---
+            if (isContingencyEnabled && trippedLine) {
+                // Restore the lineData array to the state of tempOriginalLineData
+                // This ensures all non-tripped lines (including previously manually deactivated ones) are restored.
+                lineData.forEach((line, index) => {
+                    const original = tempOriginalLineData.find(l => l.id === line.id);
+                    if (original) {
+                        // Restore all relevant electrical properties
+                        line.R_pu = original.R_pu;
+                        line.X_pu = original.X_pu;
+                        line.R_user = original.R_user;
+                        line.X_user = original.X_user;
+                        line.Z_pu = original.Z_pu;
+                        line.wireType = original.wireType;
+                        line.breakerModel = original.breakerModel;
+                        line.recloserModel = original.recloserModel;
+                        line.isWireAdequate = original.isWireAdequate;
+                        line.recommendedWire = original.recommendedWire;
+                        
+                        // ONLY the tripped line remains inactive for visualization
+                        if (line.id !== trippedLine.id) {
+                            line.active = original.active;
+                        }
+                    }
+                });
+                // The explicitly tripped line stays false for visualization in displayNetworkTopology
             }
-        });
-        modalCloseBtn.addEventListener('click', hideProjectModal);
-        projectModal.addEventListener('click', (event) => { if (event.target === projectModal) hideProjectModal(); });
 
-        // --- WIND TURBINE ANIMATION ---
-        const turbineBlades = document.getElementById('turbine-blades');
-        let currentRotation = 0, rotationSpeed = 0.5;
-        function animateTurbine() { currentRotation = (currentRotation + rotationSpeed) % 360; turbineBlades.style.transform = `rotate(${currentRotation}deg)`; requestAnimationFrame(animateTurbine); }
+
+            lfResults = busData.map(bus => ({
+                id: bus.id,
+                V: bus.V_result,
+                delta: bus.delta,
+                voltage_drop_percent: bus.voltage_drop_percent
+            }));
+
+            return lfResults;
+        }
         
-        // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', () => {
-            initMap();
-            populateFilters();
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const savedTheme = localStorage.getItem('darkMode');
-            setDarkMode(savedTheme === 'true' || (savedTheme === null && prefersDark));
-            // Call applyFiltersAndSort initially to load data and render the dashboard/charts/map
-            applyFiltersAndSort();
-            // Manually set initial sort indicator
-            const initialHeader = document.querySelector(`th[data-sort="${sortState.column}"]`);
-            if (initialHeader) {
-                const initialArrow = initialHeader.querySelector('.sort-arrow');
-                if (initialArrow) initialArrow.textContent = sortState.direction === 'asc' ? '⬆️' : '⬇️';
+        /** Renders the iterative load flow convergence data. (FIXED) */
+        function displayIterativeResults() { 
+            const messageDiv = document.getElementById('lfIterativeMessage');
+            
+            if (lfIterativeData.length === 0) {
+                 messageDiv.innerHTML = `<p class="text-gray-500 text-center py-10">The step-by-step convergence data will appear here after running the Load Flow Analysis.</p>`;
+                 return;
             }
-            animateTurbine();
+
+            const method = lfIterativeData[0].method;
+            let htmlContent = `<h3 class="text-lg font-semibold text-text-dark mb-3 text-center">Simulated ${method} Iterations (V and &delta;)</h3>`;
+
+            for (let i = 1; i <= NUM_BUSES; i++) {
+                const busId = i;
+                const busType = busData.find(b => b.id === busId).type;
+
+                htmlContent += `
+                    <div class="mb-6 border p-3 rounded-lg bg-gray-50 shadow-inner">
+                        <h4 class="font-bold text-md text-text-dark mb-2">Bus ${busId} (${busType})</h4>
+                        <table class="w-full iterative-table text-xs">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2">Iter (k)</th>
+                                    <th colspan="2">Voltage (V)</th>
+                                    <th colspan="2">Angle ($\delta$) (Deg)</th>
+                                </tr>
+                                <tr class="bg-gray-100">
+                                    <th>Mag (p.u.)</th>
+                                    <th>$\Delta$V</th>
+                                    <th>Value</th>
+                                    <th>$\Delta\delta$</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                for (let k = 0; k < lfIterativeData.length; k++) {
+                    const currentData = lfIterativeData[k].data.find(d => d.id === busId);
+                    const prevData = (k > 0) ? lfIterativeData[k-1].data.find(d => d.id === busId) : currentData;
+
+                    const V_mag = currentData.V.toFixed(4);
+                    const delta_val = currentData.delta.toFixed(4);
+                    
+                    const deltaV = (k > 0) ? (currentData.V - prevData.V).toFixed(4) : '-';
+                    const deltaDelta = (k > 0) ? (currentData.delta - prevData.delta).toFixed(4) : '-';
+                    
+                    // Convert delta to degrees for display
+                    const delta_deg = (currentData.delta * (180 / Math.PI)).toFixed(4);
+                    const deltaDelta_deg = (k > 0) ? ((currentData.delta - prevData.delta) * (180 / Math.PI)).toFixed(4) : '-';
+
+
+                    htmlContent += `
+                        <tr>
+                            <td>${k}</td>
+                            <td>${V_mag}</td>
+                            <td class="${k > 0 && Math.abs(parseFloat(deltaV)) > 0.0001 ? 'text-red-500' : 'text-gray-500'}">${deltaV}</td>
+                            <td>${delta_deg}</td>
+                            <td class="${k > 0 && Math.abs(parseFloat(deltaDelta_deg)) > 0.0001 ? 'text-red-500' : 'text-gray-500'}">${deltaDelta_deg}</td>
+                        </tr>
+                    `;
+                }
+                
+                htmlContent += `</tbody></table></div>`;
+            }
+
+            messageDiv.innerHTML = htmlContent;
+        }
+
+
+        /**
+         * Calculates the simulated Time-of-Use (TOU) operating cost/credit.
+         */
+        function calculateSystemCosts(lfResults) {
+            let totalLoadMVA = 0; 
+            let totalGenMVA = 0; 
+            
+            busData.forEach(bus => {
+                // Ensure only P_load and P_gen (MW/MVA) are used for cost calculation
+                totalLoadMVA += bus.P_load;
+                totalGenMVA += bus.P_gen;
+            });
+
+            const rateKey = LOAD_PROFILES[CURRENT_LOAD_PROFILE].rate;
+            const currentRate = TOU_RATES[rateKey];
+            const DG_Credit = TOU_RATES.DG_Credit;
+            
+            const netSystemLoad = totalLoadMVA - totalGenMVA;
+
+            let totalNetCost;
+            if (netSystemLoad > 0) {
+                totalNetCost = netSystemLoad * currentRate; 
+            } else {
+                const netExport = Math.abs(netSystemLoad);
+                totalNetCost = - (netExport * DG_Credit); 
+            }
+            
+            systemCosts.totalLoadCost = totalLoadMVA * currentRate;
+            systemCosts.totalGenCredit = totalGenMVA * DG_Credit;
+            systemCosts.netCost = parseFloat(totalNetCost.toFixed(2));
+            systemCosts.time = CURRENT_LOAD_PROFILE;
+            
+            // Update UI Cost Display
+            const costElement = document.getElementById('netCostValue');
+            const sign = systemCosts.netCost >= 0 ? '$' : '-$';
+            const value = Math.abs(systemCosts.netCost).toFixed(2);
+            
+            costElement.textContent = `${sign}${value}`;
+            costElement.className = `font-bold ${systemCosts.netCost >= 0 ? 'text-red-500' : 'text-code-pass'}`;
+        }
+
+
+        /**
+         * Initiates the Load Flow simulation and updates the UI.
+         */
+        function runLoadFlow() {
+            const method = document.getElementById('loadFlowMethod').value;
+            const lfMessage = document.getElementById('lfMessage');
+            const table = document.getElementById('lfTable');
+            const complianceMessage = document.getElementById('complianceMessage');
+            const costElement = document.getElementById('netCostValue');
+
+            // Reset N-1 visual status if it was enabled
+            const isContingencyEnabled = document.getElementById('nMinus1').checked;
+            if (!isContingencyEnabled) {
+                // Re-enable all lines if N-1 is off
+                lineData.forEach(l => l.active = originalLineData.find(ol => ol.id === l.id).active); 
+            }
+            displayLineConfiguration(); // Refresh the active status in the config panel
+            
+            // Set pre-optimization state tracking
+            if (!optimizationTrack.hasRun) {
+                optimizationTrack.preViolations = 0; 
+                optimizationTrack.preAvgV = busData.reduce((sum, b) => sum + b.V_result, 0) / NUM_BUSES;
+            }
+            document.getElementById('optimizationSummary').classList.add('hidden');
+
+            table.classList.add('hidden');
+            lfMessage.classList.remove('hidden');
+            document.getElementById('optimizeButton').disabled = true; 
+            document.getElementById('voltageProfileChart').closest('.p-4').classList.add('hidden'); 
+            costElement.textContent = 'Calculating...';
+            costElement.className = 'text-gray-500 font-normal animate-pulse';
+
+            // Display loading indicator
+            document.getElementById('lfIterativeMessage').innerHTML = `<p class="text-center text-primary py-10 flex items-center justify-center font-semibold">
+                                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Running ${method} Load Flow Analysis (Simulated Iterations)...
+                                        </p>`;
+            complianceMessage.textContent = 'Calculating PEC/PGC compliance and sizing metrics...';
+
+
+            // Simulate calculation time
+            setTimeout(() => {
+                const results = loadFlow(method);
+                calculateSystemCosts(results); 
+                displayLoadFlowResults(results, method);
+                displayIterativeResults();
+                displayNetworkTopology(results);
+                runCodeComplianceAndSizing(results); 
+                renderVoltageProfileChart(results, method); 
+                showResults('loadFlow');
+            }, 1500);
+        }
+        
+        /**
+         * Simulates Short Circuit Analysis (simplified symmetrical components) with Feature 5 (Fault Impedance).
+         */
+        function shortCircuit(faultBusId, faultType) { 
+            const busIndex = faultBusId - 1;
+            const Z_fault = parseFloat(document.getElementById('faultImpedance').value);
+            
+            // Calculate total active impedance (proxy for short circuit level)
+            let totalZ_active = 0;
+            lineData.filter(line => line.active).forEach(line => { totalZ_active += line.Z_pu; });
+            
+            const baseZ1 = totalZ_active / (NUM_LINES * 2) + 0.01; 
+            const Z1_system = baseZ1 * (1 + (busIndex / NUM_BUSES) * 0.5); 
+            const Z2_system = Z1_system * 1.05;
+            const Z0_system = Z1_system * 2.5; 
+            
+            // Apply fault impedance: Z_total = Z_system + Z_fault
+            const Z1 = Z1_system + Z_fault;
+            const Z2 = Z2_system + Z_fault;
+            const Z0 = Z0_system + Z_fault;
+
+            let I1_pu, I2_pu, I0_pu; 
+            const V_base = 1.0; 
+
+            switch (faultType) {
+                case 'LLL': 
+                    I1_pu = V_base / Z1; I2_pu = 0.0; I0_pu = 0.0; break;
+                case 'SLG': 
+                    I1_pu = V_base / (Z1 + Z2 + Z0); I2_pu = I1_pu; I0_pu = I1_pu; break;
+                case 'LL': 
+                    I1_pu = V_base / (Z1 + Z2); I2_pu = -I1_pu; I0_pu = 0.0; break;
+                case 'LLG': 
+                    const Z_parallel = (Z2 * Z0) / (Z2 + Z0);
+                    I1_pu = V_base / (Z1 + Z_parallel);
+                    I0_pu = -I1_pu * (Z2 / (Z2 + Z0));
+                    I2_pu = -I1_pu * (Z0 / (Z2 + Z0)); break;
+            }
+            
+            let I_fault_pu;
+            if (faultType === 'LLL') {
+                I_fault_pu = I1_pu;
+            } else if (faultType === 'SLG') {
+                I_fault_pu = 3 * I0_pu;
+            } else if (faultType === 'LL') {
+                I_fault_pu = Math.sqrt(3) * I1_pu;
+            } else { // LLG
+                I_fault_pu = Math.abs(I1_pu) + Math.abs(I2_pu) + Math.abs(I0_pu); 
+            }
+            
+            const I_base_A = (BASE_MVA * 1000) / (Math.sqrt(3) * busData.find(b => b.id === faultBusId).kv_level);
+            const I_fault_A = I_fault_pu * I_base_A;
+            const MVA_sc = I_fault_pu * BASE_MVA;
+
+            return {
+                busId: faultBusId,
+                faultType: faultType,
+                I_fault_A: Math.round(I_fault_A).toLocaleString() + ' Amperes',
+                MVA_sc: MVA_sc.toFixed(2) + ' MVA',
+                I_sc_pu: I_fault_pu.toFixed(4),
+                Z_fault: Z_fault.toFixed(2)
+            };
+        }
+
+
+        /**
+         * Initiates the Short Circuit simulation and updates the UI.
+         */
+        function runShortCircuit() { 
+            const inputBus = parseInt(document.getElementById('faultBus').value);
+            const faultType = document.getElementById('faultType').value;
+            const faultBusId = inputBus;
+            const scBody = document.getElementById('scBody');
+            scBody.innerHTML = '';
+            showResults('shortCircuit');
+            selectFaultBus(faultBusId); 
+
+            if (faultBusId < 1 || faultBusId > 15 || isNaN(faultBusId)) {
+                scBody.innerHTML = `<tr><td colspan="2" class="text-center text-red-600 py-4">Invalid bus ID. Please select a bus between 1 and 15.</td></tr>`;
+                return;
+            }
+
+            scBody.innerHTML = `<tr><td colspan="2" class="text-center text-secondary py-4 flex items-center justify-center font-semibold">
+                                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-secondary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Running **${faultType}** Short Circuit Analysis...
+                                </td></tr>`;
+
+            setTimeout(() => {
+                const results = shortCircuit(faultBusId, faultType);
+                displayShortCircuitResults(results);
+            }, 1000);
+        }
+
+        
+        // --- CODE COMPLIANCE & OPTIMIZATION ---
+
+        /**
+         * Simulates Code Compliance Checks.
+         */
+        function runCodeComplianceAndSizing(lfResults) {
+            const complianceBody = document.getElementById('complianceBody');
+            const optimizationButton = document.getElementById('optimizeButton');
+            complianceBody.innerHTML = '';
+            
+            let codeViolationsCount = 0;
+
+            // --- 1. Bus-Level Compliance ---
+            let complianceTableHTML = `
+                <h3 class="text-xl font-semibold text-text-dark mb-3 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-accent-blue" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                    Bus Compliance (PGC Voltage, PEC VD, Harmonics)
+                </h3>
+                <table class="min-w-full compliance-table text-sm" role="table" aria-label="Bus Compliance Check">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th>Bus ID (kV)</th>
+                            <th>V Mag. (p.u.)</th>
+                            <th class="cursor-pointer" onclick="openCodeDetails('PGC_V')">PGC V Check</th>
+                            <th class="cursor-pointer" onclick="openCodeDetails('PEC_VD')">PEC V Drop</th>
+                            <th class="cursor-pointer" onclick="openCodeDetails('PGC_THD')">THD (%)</th>
+                            <th>Cap MVAR</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            lfResults.forEach(res => {
+                const bus = busData.find(b => b.id === res.id);
+
+                const isPGC_V_OK = res.V >= VOLTAGE_LIMIT_MIN; 
+                const isPEC_VD_OK = bus.voltage_drop_percent <= MAX_VOLTAGE_DROP_PERCENT;
+                const isPGC_THD_OK = bus.thd_value <= HARMONIC_LIMIT_THD;
+                
+                if (!isPGC_V_OK || !isPEC_VD_OK || !isPGC_THD_OK) { codeViolationsCount++; }
+                
+                let kvColorClass = `text-kv-${bus.kv_level.toString().replace('.', '')}`;
+
+                complianceTableHTML += `
+                    <tr class="hover:bg-gray-50 cursor-pointer" onclick="openCodeDetails('BUS_SUMMARY', ${bus.id})" aria-label="Bus ${bus.id} details">
+                        <td class="font-bold">Bus ${bus.id} <span class="${kvColorClass}">(${bus.kv_level}kV)</span></td>
+                        <td>${res.V.toFixed(4)}</td>
+                        <td class="${isPGC_V_OK ? 'text-code-pass' : 'text-code-fail font-bold'}">
+                            ${isPGC_V_OK ? 'PASS' : 'FAIL'}
+                        </td>
+                        <td class="${isPEC_VD_OK ? 'text-code-pass' : 'text-code-fail font-bold'}">
+                            ${isPEC_VD_OK ? 'PASS' : `FAIL (${bus.voltage_drop_percent.toFixed(2)}%)`}
+                        </td>
+                        <td class="${isPGC_THD_OK ? 'text-code-pass' : 'text-code-fail font-bold'}">
+                            ${bus.thd_value.toFixed(2)}%
+                        </td>
+                        <td>${bus.capacitor_mvar.toFixed(1)}</td>
+                    </tr>
+                `;
+            });
+
+            complianceTableHTML += `</tbody></table>`;
+            complianceBody.innerHTML += complianceTableHTML;
+            
+            
+            // --- 2. Line-Level Compliance (PEC Ampacity & SC Rating) ---
+            let wireSizingHTML = `
+                <h3 class="text-xl font-semibold text-text-dark mb-3 flex items-center mt-6">
+                    <svg class="w-5 h-5 mr-2 text-secondary" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.477 3-10S13.657 3 12 3s-3 4.477-3 10 1.343 10 3 10z"></path></svg>
+                    Line Sizing & Protection Compliance
+                </h3>
+                <table class="min-w-full compliance-table text-xs" role="table" aria-label="Line Sizing and Protection Check">
+                    <thead>
+                        <tr class="bg-gray-200">
+                            <th>Line (From-To)</th>
+                            <th>Wire Type</th>
+                            <th>Breaker Model</th>
+                            <th>ANSI Relay</th>
+                            <th>Current (A)</th>
+                            <th class="cursor-pointer" onclick="openCodeDetails('PEC_AMP')">Ampacity Check</th>
+                            <th class="cursor-pointer" onclick="openCodeDetails('PEC_SC')">SCA Rating Check</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            const nominalSCkA = 15; 
+            
+            lineData.forEach(line => {
+                const currentACSR = ACSR_TYPES.find(t => t.code === line.wireType);
+                const fromBusKv = busData.find(b => b.id === line.from).kv_level;
+
+                if (!currentACSR) return; 
+                
+                const breakerMatch = line.breakerModel.match(/\(([\d\.]+)\s*kA\)/);
+                const breakerRatingkA = breakerMatch ? parseFloat(breakerMatch[1]) : 10; 
+                
+                const I_base_bus = (BASE_MVA * 1000) / (Math.sqrt(3) * fromBusKv);
+                const S_load_bus_pu = Math.sqrt(busData.find(b => b.id === line.from).P_load**2 + busData.find(b => b.id === line.from).Q_load**2);
+                
+                const lineCurrentA = (S_load_bus_pu / 1.0) * I_base_bus / 2; // Simplified flow
+                const requiredAmpacity = lineCurrentA * BREAKER_SAFETY_MARGIN; 
+                
+                const isWireAdequate = currentACSR.ampacity >= requiredAmpacity;
+                const isSCARatingOK = breakerRatingkA >= nominalSCkA; 
+                
+                if (!isWireAdequate || !isSCARatingOK) { codeViolationsCount++; }
+                
+                const recommendedWireCode = findRecommendedWireCode(requiredAmpacity, line.wireType);
+                const recommendedWire = ACSR_TYPES.find(t => t.code === recommendedWireCode);
+                
+                line.isWireAdequate = isWireAdequate;
+                line.recommendedWire = recommendedWire.code;
+                line.requiredAmpacity = requiredAmpacity;
+                
+                wireSizingHTML += `
+                    <tr>
+                        <td>${line.from}-${line.to}</td>
+                        <td>${currentACSR.name}</td>
+                        <td>${line.breakerModel}</td>
+                        <td>${line.recloserModel}</td>
+                        <td>${lineCurrentA.toFixed(1)}</td>
+                        <td class="${isWireAdequate ? 'text-code-pass' : 'text-code-fail font-bold'}">
+                            ${isWireAdequate ? 'PASS' : `FAIL (Rec: ${recommendedWire.code})`}
+                        </td>
+                        <td class="${isSCARatingOK ? 'text-code-pass' : 'text-code-fail font-bold'}">
+                            ${breakerRatingkA.toFixed(1)}kA (${isSCARatingOK ? 'PASS' : 'FAIL'})
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            wireSizingHTML += `</tbody></table>`;
+            complianceBody.innerHTML += wireSizingHTML;
+            
+            
+            // --- 3. Optimization UI Update ---
+            let optimizationMessage;
+            
+            if (!optimizationTrack.hasRun) {
+                optimizationTrack.preViolations = codeViolationsCount;
+                optimizationTrack.hasRun = true;
+                
+                if (codeViolationsCount === 0) {
+                     optimizationMessage = `**SYSTEM STATUS: GREEN.** All system metrics pass simplified PGC/PEC compliance checks. System is highly resilient.`;
+                     optimizationButton.disabled = true;
+                     optimizationButton.classList.remove('from-orange-500', 'to-red-500');
+                     optimizationButton.classList.add('from-gray-400', 'to-gray-500');
+                     optimizationButton.textContent = 'No Violations to Optimize';
+                } else {
+                     optimizationMessage = `**SUMMARY:** ${codeViolationsCount} total potential code violation(s) detected. Use the 'Optimize Violations' button for automatic corrective actions (Wire size upgrades, DG/DR/Cap activation).`;
+                     optimizationButton.disabled = false;
+                     optimizationButton.classList.add('from-orange-500', 'to-red-500');
+                     optimizationButton.classList.remove('from-gray-400', 'to-gray-500');
+                     optimizationButton.textContent = 'Optimize Violations & Re-Run';
+                }
+            } else {
+                displayOptimizationSummary(codeViolationsCount);
+                optimizationTrack.hasRun = false; 
+                optimizationTrack.wireUpgrades = [];
+                optimizationTrack.dgActions = [];
+                optimizationTrack.drActions = [];
+                optimizationTrack.capActions = [];
+                
+                optimizationMessage = `Optimization complete. Review the **Optimization Summary** above for changes and the new compliance status below. To make further manual changes, adjust the controls and run Load Flow again.`;
+                optimizationButton.disabled = true; 
+                optimizationButton.classList.remove('from-orange-500', 'to-red-500');
+                optimizationButton.classList.add('from-gray-400', 'to-gray-500');
+                optimizationButton.textContent = 'No Violations to Optimize';
+            }
+
+
+            document.getElementById('optimizationText').textContent = optimizationMessage;
+            document.getElementById('complianceMessage').classList.add('hidden');
+        }
+
+        /**
+         * Generates and displays the optimization summary after a fix is run.
+         */
+        function displayOptimizationSummary(postViolations) {
+            const summaryDiv = document.getElementById('optimizationSummary');
+            const summaryContent = document.getElementById('summaryContent');
+            const preViolations = optimizationTrack.preViolations;
+            const postAvgV = busData.reduce((sum, b) => sum + b.V_result, 0) / NUM_BUSES;
+            const deltaV = postAvgV - optimizationTrack.preAvgV;
+
+            let html = `<p class="font-bold text-lg text-text-dark">Results Overview</p>`;
+            html += `<ul class="list-disc list-inside space-y-1">`;
+            html += `<li class="${postViolations > 0 ? 'text-code-fail' : 'text-code-fix'}">Compliance improved from ${preViolations} to ${postViolations} total violations.</li>`;
+            html += `<li>Average System Voltage increased by <span class="font-semibold text-code-fix">${deltaV.toFixed(4)} p.u.</span> (From ${optimizationTrack.preAvgV.toFixed(4)} to ${postAvgV.toFixed(4)} p.u.).</li>`;
+            html += `</ul>`;
+
+            // --- Equipment Upgrades ---
+            if (optimizationTrack.wireUpgrades.length > 0) {
+                html += `<p class="font-bold text-md text-text-dark mt-4">Equipment Upgrades:</p><ul class="list-disc list-inside space-y-1 text-sm">`;
+                optimizationTrack.wireUpgrades.forEach(u => {
+                    html += `<li class="text-code-fix">Line ${u.lineId}: Upgraded **${u.oldWire}** to **${u.newWire}** (Fixed Ampacity/Voltage Drop). Breaker also upgraded to **${u.newBreaker}** (40kA rating).</li>`;
+                });
+                html += `</ul>`;
+            } 
+
+            // --- Smart Grid Actions ---
+            if (optimizationTrack.dgActions.length > 0 || optimizationTrack.drActions.length > 0 || optimizationTrack.capActions.length > 0) {
+                 html += `<p class="font-bold text-md text-text-dark mt-4">Smart Grid Actions:</p><ul class="list-disc list-inside space-y-1 text-sm">`;
+                 optimizationTrack.dgActions.forEach(a => {
+                     html += `<li class="text-code-fix">Bus ${a.busId} DG: Status set to **${a.newStatus}**. Q control set to **${a.newQMode}**.</li>`;
+                 });
+                 optimizationTrack.drActions.forEach(a => {
+                     html += `<li class="text-code-fix">Bus ${a.busId} DR: Load reduction applied (**${a.reduction.toFixed(3)} p.u.**) to raise voltage/reduce load stress.</li>`;
+                 });
+                 optimizationTrack.capActions.forEach(a => {
+                     html += `<li class="text-code-fix">Bus ${a.busId} CAP: Injected **${a.mvar.toFixed(1)} MVAR** to boost local voltage.</li>`;
+                 });
+                 html += `</ul>`;
+            } else if (optimizationTrack.wireUpgrades.length === 0) {
+                 html += `<p class="text-gray-600 mt-4 text-sm">No equipment or Smart Grid actions were necessary to resolve violations.</p>`;
+            }
+
+
+            summaryContent.innerHTML = html;
+            summaryDiv.classList.remove('hidden');
+        }
+
+
+        /**
+         * Attempts to fix all detected PEC/PGC violations automatically.
+         */
+        function optimizeViolations() {
+            optimizationTrack.preAvgV = busData.reduce((sum, b) => sum + b.V_result, 0) / NUM_BUSES;
+            optimizationTrack.wireUpgrades = [];
+            optimizationTrack.dgActions = [];
+            optimizationTrack.drActions = [];
+            optimizationTrack.capActions = [];
+            optimizationTrack.hasRun = false; 
+
+            runCodeComplianceAndSizing(lfResults); 
+
+            // 1. --- Apply Reactive Power Fixes (Caps/DG) for Low Voltage ---
+            busData.filter(b => b.V_result < VOLTAGE_LIMIT_MIN).forEach(b => {
+                const voltageDeficit = 1.0 - b.V_result;
+
+                // Try Capacitor Bank first (Feature 3)
+                if (b.capacitor_mvar_max > 0) {
+                    const requiredMVAR = Math.min(b.capacitor_mvar_max, voltageDeficit * 50); // Heuristic
+                    b.capacitor_mvar = requiredMVAR;
+                    optimizationTrack.capActions.push({ busId: b.id, mvar: requiredMVAR });
+                }
+                
+                // Then try DG Q-Boost
+                if (b.DG_capacity > 0 && b.DG_status === 'Off') {
+                    b.DG_status = 'On';
+                    b.DG_Q_mode = 'Boost V'; 
+                    optimizationTrack.dgActions.push({ busId: b.id, newStatus: b.DG_status, newQMode: b.DG_Q_mode });
+                }
+            });
+
+
+            // 2. --- Apply Load Management (DR) for Severe Low Voltage ---
+             busData.filter(b => b.DR_enabled && b.V_result < 0.93 && b.DR_reduction === 0.0).forEach(b => {
+                b.DR_reduction = b.P_load_base * 0.3; // 30% load reduction
+                optimizationTrack.drActions.push({
+                    busId: b.id,
+                    reduction: b.DR_reduction
+                });
+            });
+
+
+            // 3. --- Apply PEC Ampacity/SCA Fixes (Wire Sizing & Breaker Upgrade) ---
+            lineData.forEach(line => {
+                const currentACSR = ACSR_TYPES.find(t => t.code === line.wireType);
+                let upgradeNeeded = false;
+                
+                const oldWireName = currentACSR ? currentACSR.name : 'Unknown';
+
+                // A. Wire Sizing Fix (Ampacity/Voltage Drop)
+                if (!line.isWireAdequate && line.recommendedWire) {
+                    line.wireType = line.recommendedWire;
+                    recalculateLineImpedance(line.id, line.wireType); 
+                    upgradeNeeded = true;
+                }
+
+                // B. Breaker SCA Rating Fix 
+                const breakerMatch = line.breakerModel.match(/\(([\d\.]+)\s*kA\)/);
+                const breakerRatingkA = breakerMatch ? parseFloat(breakerMatch[1]) : 10;
+                
+                if (breakerRatingkA < 40) { 
+                    line.breakerModel = 'GE SF6 VCB (40kA)'; 
+                    line.recloserModel = '79 (Reclosing)'; 
+                    upgradeNeeded = true;
+                }
+                
+                if (upgradeNeeded) {
+                    const newACSR = ACSR_TYPES.find(t => t.code === line.wireType);
+                    optimizationTrack.wireUpgrades.push({
+                        lineId: `${line.from}-${line.to}`,
+                        oldWire: oldWireName,
+                        newWire: newACSR.name,
+                        newBreaker: line.breakerModel
+                    });
+                }
+            });
+
+            // Re-render config UI and re-run Load Flow to see the effects of optimization
+            displayLineConfiguration(); 
+            displayBusEditing(); 
+            runLoadFlow(); 
+        }
+
+        // --- Charting ---
+
+        /**
+         * Renders the voltage magnitude profile chart using Chart.js.
+         */
+        function renderVoltageProfileChart(results, method) {
+            const ctx = document.getElementById('voltageProfileChart');
+            document.getElementById('voltageProfileChart').closest('.p-4').classList.remove('hidden'); 
+
+            const labels = results.map(r => `B${r.id} (${busData.find(b=>b.id===r.id).kv_level}kV)`);
+            const data = results.map(r => r.V);
+            const backgroundColors = data.map(V => {
+                if (V < 0.93) return 'rgba(239, 68, 68, 0.7)'; 
+                if (V < 0.97) return 'rgba(251, 191, 36, 0.7)'; 
+                return 'rgba(16, 185, 129, 0.7)'; 
+            });
+
+            if (voltageChartInstance) {
+                voltageChartInstance.destroy();
+            }
+
+            voltageChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `Voltage Magnitude (p.u.) - ${method}`,
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: backgroundColors.map(color => color.replace('0.7', '1')),
+                        borderWidth: 1.5,
+                        borderRadius: 5,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 0.90, 
+                            max: 1.06,
+                            title: {
+                                display: true,
+                                text: 'Voltage Magnitude (p.u.)'
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                            }
+                        },
+                        x: {
+                             grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += context.parsed.y.toFixed(4) + ' p.u.';
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- MODAL AND UI HELPERS ---
+
+        /**
+         * Opens the modal popup with technical explanations based on the type.
+         */
+        function openCodeDetails(type, busId = null) {
+            const modal = document.getElementById('technicalModal');
+            const title = document.getElementById('modalTitle');
+            const body = document.getElementById('modalBody');
+            
+            let modalTitle = 'Code Provision Details';
+            let modalContent = '';
+
+            switch (type) {
+                case 'PGC_V':
+                    modalTitle = 'PGC Voltage Compliance (0.95 p.u.)';
+                    modalContent = `<p class="font-bold text-lg text-red-600">Violation Reference: PGC Section 6.3.1.2 (Voltage Tolerance)</p>
+                                    <p>The Philippine Grid Code requires voltage levels to be maintained within specified limits to ensure quality service. Minimum transient voltage stability limit is often considered $\mathbf{0.95}$ p.u. If the voltage falls below this level, it indicates a significant contingency or excessive network impedance.</p>`;
+                    break;
+                case 'PEC_VD':
+                    modalTitle = 'PEC Voltage Drop Compliance (<3%)';
+                    modalContent = `<p class="font-bold text-lg text-red-600">Violation Reference: PEC 2.30.2.7 (Feeder Voltage Drop)</p>
+                                    <p>The Philippine Electrical Code (PEC) recommends that the total voltage drop in feeders and branch circuits not exceed $\mathbf{3\%}$.</p>`;
+                    break;
+                case 'PGC_THD':
+                    modalTitle = 'PGC Total Harmonic Distortion (THD < 5%)';
+                    modalContent = `<p class="font-bold text-lg text-red-600">Violation Reference: PGC Section 6.3.2 (Simulated Harmonics Limit)</p>
+                                    <p>Harmonic distortion must be limited (typically $\mathbf{5\%}$ THD) to prevent overheating and protection device maloperation. Industrial loads often inject the most harmonics.</p>`;
+                    break;
+                case 'PEC_AMP':
+                     modalTitle = 'PEC Conductor Ampacity Check';
+                    modalContent = `<p class="font-bold text-lg text-red-600">Violation Reference: PEC 3.10.1.5 (General Ampacity)</p>
+                                    <p>Conductors must be sized so that their rated ampacity is adequate for the computed maximum load, often incorporating a $\mathbf{125\%}$ safety margin for continuous loads. Failure risks overheating and fire.</p>`;
+                    break;
+                case 'PEC_SC':
+                     modalTitle = 'PEC Breaker Short Circuit Current Rating';
+                    modalContent = `<p class="font-bold text-lg text-red-600">Violation Reference: PEC 2.15.2.10 (Interrupting Rating)</p>
+                                    <p>Overcurrent protective devices must have an interrupting current rating sufficient for the maximum available fault current (SCA) at the point of application.</p>`;
+                    break;
+                 case 'ANSI_CODE_EXPLANATION':
+                    modalTitle = 'ANSI Device Numbers for Protection';
+                    modalContent = `<p class="font-bold text-lg text-accent-blue">Common Feeder/Distribution Protection Relays:</p>
+                                    <ul class="list-disc list-inside space-y-2 text-sm">
+                                        <li><strong class="text-secondary">50/51 (Overcurrent):</strong> Standard instantaneous and time-delayed fault protection.</li>
+                                        <li><strong class="text-secondary">79 (Reclosing):</strong> Automatically restores service after a temporary fault trip.</li>
+                                        <li><strong class="text-secondary">21 (Distance):</strong> Operates based on measured impedance (Z) to determine fault location.</li>
+                                        <li><strong class="text-secondary">67 (Directional Ovr Current):</strong> Only operates if the fault current flows in a specific direction.</li>
+                                    </ul>`;
+                    break;
+                 case 'BUS_SUMMARY':
+                    const bus = busData.find(b => b.id === busId);
+                    modalTitle = `Bus ${busId} Status Summary (${bus.kv_level}kV)`;
+                    modalContent = `<p><strong>Load Type:</strong> ${bus.load_type}</p>
+                                    <p><strong>P Load (Current):</strong> ${bus.P_load.toFixed(3)} p.u. (Base: ${bus.P_load_base.toFixed(3)} p.u.)</p>
+                                    <p><strong>Q Gen (Capacitor):</strong> ${bus.capacitor_mvar.toFixed(1)} MVAR</p>
+                                    <p><strong>DG Status:</strong> ${bus.DG_status} (Cap: ${bus.DG_capacity} p.u.)</p>
+                                    <p class="mt-3 font-bold">Key Code Metrics:</p>
+                                    <ul class="list-disc list-inside space-y-1">
+                                        <li>Voltage Magnitude (PGC): <span class="${bus.V_result >= VOLTAGE_LIMIT_MIN ? 'text-code-pass' : 'text-code-fail'}">${bus.V_result.toFixed(4)} p.u.</span></li>
+                                        <li>Voltage Drop (PEC): <span class="${bus.voltage_drop_percent <= MAX_VOLTAGE_DROP_PERCENT ? 'text-code-pass' : 'text-code-fail'}">${bus.voltage_drop_percent.toFixed(2)}%</span></li>
+                                    </ul>`;
+                    break;
+            }
+
+            title.innerHTML = modalTitle;
+            body.innerHTML = modalContent;
+            modal.classList.remove('hidden');
+            document.getElementById('modalContent').classList.remove('scale-95');
+            document.getElementById('modalContent').classList.add('scale-100');
+            // Accessibility: Focus on the modal for screen readers
+            modal.focus();
+        }
+
+        /** Closes the technical details modal. */
+        function closeModal() {
+            const modal = document.getElementById('technicalModal');
+            document.getElementById('modalContent').classList.add('scale-95');
+            document.getElementById('modalContent').classList.remove('scale-100');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+        
+        /** Renders the load flow results table. */
+        function displayLoadFlowResults(results, method) {
+            const table = document.getElementById('lfTable');
+            const lfMessage = document.getElementById('lfMessage');
+            
+            // Check for N-1 trip
+            const trippedLine = lineData.find(l => !l.active && !originalLineData.find(ol => ol.id === l.id).active); 
+            let messageText = `Load Flow completed using **${method}** method simulation. ${lineData.filter(l => l.active).length}/${NUM_LINES} wires active.`;
+            if (trippedLine) {
+                 messageText = `<span class="text-red-600 font-bold">N-1 Contingency: Line ${trippedLine.from}-${trippedLine.to} (ID: ${trippedLine.id}) is tripped.</span>`;
+            }
+
+            let tableHTML = `
+                <thead>
+                    <tr class="bg-gray-200">
+                        <th class="rounded-tl-lg">Bus ID</th>
+                        <th>Type</th>
+                        <th>Load Class</th>
+                        <th>V Mag. (p.u.)</th>
+                        <th>P Load (p.u.)</th>
+                        <th>P Gen (p.u.)</th>
+                        <th class="rounded-tr-lg">THD (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+
+            results.forEach(res => {
+                const bus = busData.find(b => b.id === res.id);
+                let colorClass = (res.V < 0.93) ? 'text-red-600 font-bold' : (res.V < 0.97) ? 'text-yellow-600 font-semibold' : (res.V > 1.04) ? 'text-primary font-semibold' : 'text-code-pass';
+                const thdColorClass = bus.thd_value <= HARMONIC_LIMIT_THD ? 'text-code-pass' : 'text-code-fail font-bold';
+                
+                tableHTML += `
+                    <tr>
+                        <td class="font-bold">${bus.id}</td>
+                        <td>${bus.type}</td>
+                        <td>${bus.load_type}</td>
+                        <td class="${colorClass}">${res.V.toFixed(4)}</td>
+                        <td>${bus.P_load.toFixed(3)}</td>
+                        <td>${bus.P_gen.toFixed(3)} ${bus.DG_status === 'On' ? '(DG ON)' : ''}</td>
+                        <td class="${thdColorClass}">${bus.thd_value.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `</tbody>`;
+            
+            if (table) {
+                table.innerHTML = tableHTML;
+                table.classList.remove('hidden');
+            }
+
+            if (lfMessage) {
+                lfMessage.innerHTML = `<p class="text-sm text-center text-primary mb-2 font-medium">${messageText}</p>`;
+                lfMessage.classList.add('hidden'); 
+            }
+        }
+        
+        /** Renders the short circuit results table. */
+        function displayShortCircuitResults(results) {
+            const scBody = document.getElementById('scBody');
+            
+            const faultNames = {
+                'LLL': 'Three-Phase Bolted Fault (L-L-L)',
+                'SLG': 'Single-Line-to-Ground Fault (L-G)',
+                'LL': 'Line-to-Line Fault (L-L)',
+                'LLG': 'Double-Line-to-Ground Fault (L-L-G)'
+            };
+
+            scBody.innerHTML = `
+                <tr><td>Faulted Bus ID</td><td>${results.busId}</td></tr>
+                <tr><td>Fault Type</td><td>${faultNames[results.faultType]}</td></tr>
+                <tr><td>Fault Impedance ($Z_f$)</td><td>${results.Z_fault} p.u.</td></tr>
+                <tr><td>Pre-Fault Voltage (V<sub class="text-xs">f</sub>)</td><td>${lfResults ? lfResults.find(r => r.id === results.busId).V.toFixed(4) : 'N/A'} p.u.</td></tr>
+                
+                <tr class="bg-gray-100"><td colspan="2" class="font-bold text-center">Fault Results</td></tr>
+                <tr><td>**Fault Current (Amperes)**</td><td class="text-secondary">${results.I_fault_A}</td></tr>
+                <tr><td>**Short Circuit MVA (MVA<sub class="text-xs">sc</sub>)**</td><td class="text-secondary">${results.MVA_sc}</td></tr>
+            `;
+
+             document.getElementById('shortCircuitResults').insertAdjacentHTML('afterbegin', `<p class="text-sm text-center text-primary mb-2 font-medium">
+                Short Circuit analysis completed for a **${results.faultType}** fault at Bus ${results.busId} with $Z_f = ${results.Z_fault}$ p.u.
+             </p>`);
+        }
+        
+        /** Renders the network topology visualization (SVG) showing lines and colored buses. */
+        function displayNetworkTopology(results = null) {
+            const svg = document.getElementById('networkSVG');
+            if (!svg) return; 
+            
+            // Fixed viewBox dimensions (1000x400) ensure content scales responsively via CSS
+            svg.setAttribute('viewBox', `0 0 1000 400`);
+            svg.innerHTML = ''; 
+            
+            // 1. Draw Lines (Wires)
+            lineData.forEach(line => {
+                const fromCoords = busCoordinates.find(b => b.id === line.from);
+                const toCoords = busCoordinates.find(b => b.id === line.to);
+
+                if (!fromCoords || !toCoords) return; 
+
+                const fromBus = busData.find(b => b.id === line.from);
+                const toBus = busData.find(b => b.id === line.to);
+                const isInterKv = fromBus.kv_level !== toBus.kv_level;
+                const isTripped = !line.active && !originalLineData.find(ol => ol.id === line.id).active; // Check against initial state
+
+                let lineStroke = isTripped ? 'var(--tw-colors-bus-fault)' : (line.active ? '#374151' : '#d1d5db'); 
+                let lineDash = isTripped ? '2 2' : (line.active ? (isInterKv ? '4' : 'none') : '4'); 
+                let lineOpacity = isTripped ? 1.0 : (line.active ? 1.0 : 0.5);
+                let strokeWidth = isInterKv ? 3 : 2;
+
+                svg.innerHTML += `
+                    <line x1="${fromCoords.x}" y1="${fromCoords.y}" x2="${toCoords.x}" y2="${toCoords.y}"
+                          stroke="${lineStroke}" stroke-width="${strokeWidth}" stroke-dasharray="${lineDash}" opacity="${lineOpacity}" 
+                          title="${isTripped ? 'TRIPPED: ' : ''}Line ${line.id}: ${line.from}-${line.to}" />
+                `;
+            });
+
+            // 2. Draw Buses (Nodes)
+            busCoordinates.forEach(bus => {
+                const busObj = busData.find(b => b.id === bus.id);
+                let V_text = busObj?.V_result.toFixed(3) || '1.000';
+                let color = 'var(--tw-colors-bus-default)'; 
+                const kvLevel = busObj.kv_level;
+                
+                let kvColor = 'var(--tw-colors-bus-default)';
+                if (kvLevel === KV_LEVELS['69']) kvColor = 'var(--tw-colors-kv-69)';
+                else if (kvLevel === KV_LEVELS['34.5']) kvColor = 'var(--tw-colors-kv-345)';
+                else if (kvLevel === KV_LEVELS['13.8']) kvColor = 'var(--tw-colors-kv-138)';
+
+
+                if (results) {
+                    const res = results.find(r => r.id === bus.id);
+                    if (res) {
+                        if (res.V < 0.93) color = 'var(--tw-colors-bus-crit)'; 
+                        else if (res.V < 0.97) color = 'var(--tw-colors-bus-low)'; 
+                        else color = 'var(--tw-colors-bus-good)'; 
+                    }
+                }
+                
+                if (bus.id === selectedFaultBus) {
+                    color = 'var(--tw-colors-bus-fault)';
+                }
+
+                svg.innerHTML += `
+                    <circle cx="${bus.x}" cy="${bus.y}" r="12" fill="${color}" stroke="${kvColor}" stroke-width="3"
+                            cursor="pointer" onclick="selectFaultBus(${bus.id})"
+                            title="Bus ${bus.id} (${kvLevel}kV): V=${V_text} p.u." 
+                            aria-label="Bus ${bus.id} with voltage ${V_text} p.u."/>
+                    <text x="${bus.x}" y="${bus.y + 3}" text-anchor="middle" fill="white" font-size="10px" font-weight="bold"
+                          cursor="pointer" onclick="selectFaultBus(${bus.id})">
+                        ${bus.id}
+                    </text>
+                    <text x="${bus.x}" y="${bus.y + 25}" text-anchor="middle" fill="${color}" font-size="10px">
+                        ${V_text} p.u.
+                    </text>
+                `;
+            });
+        }
+        
+        /** Renders the Line Configuration panel. */
+        function displayLineConfiguration() {
+            const configDiv = document.getElementById('lineConfiguration');
+            configDiv.innerHTML = '';
+
+            const sortedACSRTypes = ACSR_TYPES.map(type => ({
+                code: type.code,
+                displayName: `${type.name} - ${type.ampacity}A` 
+            })).sort((a, b) => a.displayName.localeCompare(b.displayName));
+            
+            const getBreakerSelect = (line) => `
+                 <select class="line-select" onchange="updateSystemParameter(${line.id}, 'breakerModel', this.value)" aria-label="Breaker Model for Line ${line.from}-${line.to}">
+                    ${BREAKER_MODELS.map(model => 
+                        `<option value="${model}" ${line.breakerModel === model ? 'selected' : ''}>${model}</option>`
+                    ).join('')}
+                </select>
+            `;
+
+            const getRelaySelect = (line) => `
+                 <select class="line-select" onchange="updateSystemParameter(${line.id}, 'recloserModel', this.value)" aria-label="ANSI Relay for Line ${line.from}-${line.to}">
+                    ${ANSI_RELAYS.map(relay => 
+                        `<option value="${relay}" ${line.recloserModel === relay ? 'selected' : ''}>${relay}</option>`
+                    ).join('')}
+                </select>
+            `;
+
+            lineData.forEach(line => {
+                const selectElement = `
+                    <select class="line-select" onchange="updateSystemParameter(${line.id}, 'wireType', this.value)" aria-label="Wire Type for Line ${line.from}-${line.to}">
+                        ${sortedACSRTypes.map(type => 
+                            `<option value="${type.code}" ${line.wireType === type.code ? 'selected' : ''}>${type.displayName}</option>`
+                        ).join('')}
+                    </select>
+                `;
+
+                // --- MODIFIED: Single Grid Row Structure ---
+                configDiv.innerHTML += `
+                    <div class="line-item-block">
+                        ${selectElement}
+
+                        <input type="number" value="${line.R_user.toFixed(4)}" step="0.0001" min="0" 
+                            class="config-input text-right" 
+                            onchange="updateSystemParameter(${line.id}, 'R_user', this.value)" title="Resistance (p.u.)" aria-label="Resistance R p.u. for Line ${line.id}">
+                        
+                        <input type="number" value="${line.X_user.toFixed(4)}" step="0.0001" min="0" 
+                            class="config-input text-right" 
+                            onchange="updateSystemParameter(${line.id}, 'X_user', this.value)" title="Reactance (p.u.)" aria-label="Reactance X p.u. for Line ${line.id}">
+                        
+                        <input type="number" value="${line.from}" min="1" max="${NUM_BUSES}" 
+                            class="config-input text-center text-sm" 
+                            onchange="updateSystemParameter(${line.id}, 'from', this.value)" title="From Bus" aria-label="From Bus ID for Line ${line.id}">
+                        
+                        <input type="number" value="${line.to}" min="1" max="${NUM_BUSES}" 
+                            class="config-input text-center text-sm" 
+                            onchange="updateSystemParameter(${line.id}, 'to', this.value)" title="To Bus" aria-label="To Bus ID for Line ${line.id}">
+                        
+                        ${getBreakerSelect(line)}
+                        ${getRelaySelect(line)}
+
+                        <label class="relative inline-flex items-center cursor-pointer justify-center" aria-label="Toggle Line ${line.id} Active Status">
+                            <input type="checkbox" ${line.active ? 'checked' : ''} class="sr-only peer" 
+                                   onchange="toggleLineActive(${line.id}, this.checked); displayNetworkTopology(lfResults);">
+                            <div class="w-7 h-4 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
+                    </div>
+                `;
+            });
+        }
+        
+        /** Renders the Bus Parameter and Smart Grid Controls panel. */
+        function displayBusEditing() {
+            const editDiv = document.getElementById('busParameterEditing');
+            editDiv.innerHTML = '';
+            
+            const busInputs = busData.map(bus => {
+                const isSlack = bus.type === 'Slack';
+                
+                let inputHTML = '';
+                let busWrapperClasses = "bg-gray-50 p-3 rounded-xl border border-gray-200 space-y-2 shadow-sm"; 
+                
+                let loadFields = `
+                    <div class="flex space-x-2">
+                        <div class="flex-1 space-y-1">
+                            <label class="block text-xs font-medium text-gray-600">P Load (Base)</label>
+                            <input type="number" value="${bus.P_load_base.toFixed(3)}" step="0.01" min="0" 
+                                class="w-full config-input text-sm" onchange="updateSystemParameter(${bus.id}, 'P_load_base', this.value)" aria-label="Base P Load for Bus ${bus.id}">
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <label class="block text-xs font-medium text-gray-600">Q Load (Base)</label>
+                            <input type="number" value="${bus.Q_load_base.toFixed(3)}" step="0.01" min="0"
+                                class="w-full config-input text-sm" onchange="updateSystemParameter(${bus.id}, 'Q_load_base', this.value)" aria-label="Base Q Load for Bus ${bus.id}">
+                        </div>
+                    </div>
+                `;
+
+                if (isSlack) {
+                     inputHTML = `<label class="block text-xs font-bold text-text-dark">Bus ${bus.id} (${bus.kv_level}kV Slack)</label><span class="text-xs text-gray-500 block text-center pt-2">V and &delta; are fixed.</span>`;
+                     busWrapperClasses += " flex flex-col justify-center items-center h-full";
+                } else {
+                    let smartGridFields = '';
+                    
+                    if (bus.type === 'PV') {
+                         loadFields = `
+                            <div class="flex space-x-2">
+                                <div class="flex-1 space-y-1">
+                                    <label class="block text-xs font-medium text-gray-600">P Gen</label>
+                                    <input type="number" value="${bus.P_gen_base.toFixed(3)}" step="0.01" min="0" 
+                                        class="w-full config-input text-sm" onchange="updateSystemParameter(${bus.id}, 'P_gen_base', this.value)" aria-label="Base P Generation for Bus ${bus.id}">
+                                </div>
+                                <div class="flex-1 space-y-1">
+                                    <label class="block text-xs font-medium text-gray-600">V Set</label>
+                                    <input type="number" value="${bus.V.toFixed(3)}" step="0.001" min="0.95" max="1.10"
+                                        class="w-full config-input text-sm" onchange="updateSystemParameter(${bus.id}, 'V', this.value)" aria-label="Set Voltage V for Bus ${bus.id}">
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // DG Control (Distributed Generation)
+                    // Note: DG capacity is now present on all buses
+                    if (bus.DG_capacity > 0) {
+                        smartGridFields += `
+                            <div class="space-y-1 pt-2 border-t border-gray-200">
+                                <label class="block text-xs font-bold text-accent-blue">DG Control (Bus ${bus.id})</label>
+                                <label class="block text-xs font-medium text-gray-600">DG Status (Cap: ${bus.DG_capacity} p.u.)</label>
+                                <select class="line-select" onchange="updateSystemParameter(${bus.id}, 'DG_status', this.value)" aria-label="DG Status for Bus ${bus.id}">
+                                    <option value="On" ${bus.DG_status === 'On' ? 'selected' : ''}>ON</option>
+                                    <option value="Off" ${bus.DG_status === 'Off' ? 'selected' : ''}>OFF</option>
+                                </select>
+                                <label class="block text-xs font-medium text-gray-600">Q Control</label>
+                                <select class="line-select" onchange="updateSystemParameter(${bus.id}, 'DG_Q_mode', this.value)" aria-label="DG Q Control Mode for Bus ${bus.id}">
+                                    <option value="Unity" ${bus.DG_Q_mode === 'Unity' ? 'selected' : ''}>Unity (PF=1)</option>
+                                    <option value="Boost V" ${bus.DG_Q_mode === 'Boost V' ? 'selected' : ''}>Boost V (+Q)</option>
+                                    <option value="Absorb Q" ${bus.DG_Q_mode === 'Absorb Q' ? 'selected' : ''}>Absorb Q (-Q)</option>
+                                </select>
+                            </div>
+                        `;
+                    }
+                    
+                    // Feature 3: Capacitor Bank
+                    // Note: Capacitor is now present on all buses
+                    if (bus.capacitor_mvar_max > 0) {
+                        smartGridFields += `
+                            <div class="space-y-1 pt-2 border-t border-gray-200">
+                                <label class="block text-xs font-bold text-green-600">Capacitor Bank (MVAR)</label>
+                                <label class="block text-xs font-medium text-gray-600">MVAR Inject (Max: ${bus.capacitor_mvar_max.toFixed(1)})</label>
+                                <input type="number" value="${bus.capacitor_mvar.toFixed(1)}" step="0.1" min="0" max="${bus.capacitor_mvar_max}"
+                                    class="w-full config-input text-sm" onchange="updateSystemParameter(${bus.id}, 'capacitor_mvar', this.value)" aria-label="Capacitor MVAR Injection for Bus ${bus.id}">
+                            </div>
+                        `;
+                    }
+
+                    // Demand Response (DR)
+                    // Note: DR is now enabled on all PQ buses
+                    if (bus.DR_enabled) {
+                        smartGridFields += `
+                            <div class="space-y-1 pt-2 border-t border-gray-200">
+                                <label class="block text-xs font-bold text-accent-blue">Demand Response (DR)</label>
+                                <label class="block text-xs font-medium text-gray-600">P Reduction (p.u.)</label>
+                                <input type="number" value="${bus.DR_reduction.toFixed(3)}" step="0.01" min="0" max="${bus.P_load_base * 0.5}"
+                                    class="w-full config-input text-sm" onchange="updateSystemParameter(${bus.id}, 'DR_reduction', this.value)" aria-label="DR P Reduction for Bus ${bus.id}">
+                            </div>
+                        `;
+                    }
+
+
+                     inputHTML = `
+                        <label class="block text-xs font-bold text-text-dark">${bus.id}. ${bus.load_type} (${bus.kv_level}kV)</label>
+                        ${loadFields}
+                        ${smartGridFields}
+                    `;
+                }
+                return `<div class="${busWrapperClasses}">${inputHTML}</div>`;
+            }).join('');
+
+            editDiv.innerHTML = busInputs;
+        }
+
+        /** Sets the currently selected fault bus and updates the UI (SVG). */
+        function selectFaultBus(busId) {
+            const inputBus = parseInt(busId);
+            if (inputBus >= 1 && inputBus <= 15) {
+                selectedFaultBus = inputBus;
+                document.getElementById('faultBus').value = inputBus;
+                document.getElementById('currentFaultBus').textContent = inputBus;
+                displayNetworkTopology(lfResults);
+            }
+        }
+        
+        function showResults(view) {
+            const views = {
+                'loadFlow': document.getElementById('loadFlowResults'),
+                'loadFlowIterative': document.getElementById('loadFlowIterativeResults'),
+                'shortCircuit': document.getElementById('shortCircuitResults'),
+                'compliance': document.getElementById('complianceResults')
+            };
+            const tabs = {
+                'loadFlow': document.getElementById('tabLF'),
+                'loadFlowIterative': document.getElementById('tabLFIterative'),
+                'shortCircuit': document.getElementById('tabSC'),
+                'compliance': document.getElementById('tabCompliance')
+            };
+
+            for (let v in views) {
+                if (v === view) {
+                    views[v].classList.remove('hidden');
+                    tabs[v].classList.add('border-primary', 'text-primary');
+                    tabs[v].classList.remove('border-transparent', 'text-gray-500');
+                } else {
+                    views[v].classList.add('hidden');
+                    tabs[v].classList.remove('border-primary', 'text-primary');
+                    tabs[v].classList.add('border-transparent', 'text-gray-500');
+                }
+            }
+        }
+        
+        
+        /**
+         * Initializes all system data: buses (with kV levels), coordinates, and lines.
+         */
+        function initializeSystemData() {
+            busData = [];
+            lineData = [];
+            busCoordinates = [];
+            
+            const kvAssignment = {
+                1: 69.0, 2: 69.0, 3: 69.0, 4: 69.0, 
+                7: 34.5, 8: 34.5, 9: 34.5, 10: 34.5,
+                5: 13.8, 6: 13.8, 11: 13.8, 12: 13.8, 13: 13.8, 14: 13.8, 15: 13.8
+            };
+
+            // 1. Bus Data Initialization 
+            for (let i = 1; i <= NUM_BUSES; i++) {
+                let type = 'PQ';
+                let Pgen = 0.0;
+                let V_init = 1.0;
+                const kvLevel = kvAssignment[i] || 13.8;
+
+                if (i === 1) {
+                    type = 'Slack'; 
+                    V_init = 1.000;
+                } else if (i === 2) {
+                    type = 'PV'; 
+                    Pgen = parseFloat((Math.random() * 1.5 + 1.0).toFixed(3));
+                    V_init = 1.05;
+                }
+                
+                const loadMultiplier = 1 + (i / NUM_BUSES) * 0.5;
+                const P_load_base = parseFloat(((Math.random() * 1.0 + 0.1) * loadMultiplier).toFixed(3));
+                const Q_load_base = parseFloat(((Math.random() * 0.5 + 0.1) * loadMultiplier).toFixed(3));
+                const load_type = ['Industrial', 'Commercial', 'Residential'][i % 3];
+                const thd_base = LOAD_TYPES[load_type].thd_avg;
+
+                // --- START User Request Modification ---
+                // Set universal DG capacity (1.0 p.u.) and Capacitor Max (15 MVAR)
+                let dgCapacity = (i === 1 || i === 2) ? 0.0 : 1.0; // Slack/PV bus skip DG for simplicity
+                let dgStatus = 'N/A';
+                if (dgCapacity > 0) dgStatus = 'Off'; // Set all new DGs to Off by default
+                
+                let capMax = (i === 1) ? 0.0 : 15.0; // Slack bus skips cap for simplicity
+                
+                let drEnabled = (type === 'PQ'); // Enable DR on all PQ buses (non-Slack, non-PV)
+                // --- END User Request Modification ---
+
+                busData.push({
+                    id: i,
+                    type: type,
+                    P_gen_base: Pgen, 
+                    P_gen: Pgen,      
+                    Q_gen: 0.0,       
+                    P_load_base: P_load_base, 
+                    Q_load_base: Q_load_base, 
+                    P_load: P_load_base, 
+                    Q_load: Q_load_base, 
+                    V: V_init,
+                    delta: 0.0,
+                    V_result: V_init,
+                    voltage_drop_percent: 0.0,
+                    kv_level: kvLevel,
+                    // Smart Grid/Compliance fields
+                    load_type: load_type,
+                    thd_base: thd_base,
+                    thd_value: thd_base,
+                    DG_status: dgStatus, 
+                    DG_capacity: dgCapacity,
+                    DG_Q_mode: 'Unity', 
+                    DR_enabled: drEnabled, 
+                    DR_reduction: 0.0,
+                    // Feature 3: Capacitor Banks
+                    capacitor_mvar_max: capMax, 
+                    capacitor_mvar: 0.0
+                });
+            }
+            
+            // 2. Bus Coordinates for SVG display
+            const busCoordsMap = {
+                1: { x: 50, y: 50 },    2: { x: 950, y: 50 },
+                3: { x: 300, y: 150 },  4: { x: 700, y: 150 },
+                5: { x: 100, y: 350 },  6: { x: 250, y: 300 },
+                7: { x: 450, y: 200 },  8: { x: 550, y: 200 },
+                9: { x: 750, y: 300 },  10: { x: 900, y: 250 },
+                11: { x: 50, y: 250 },  12: { x: 200, y: 350 },
+                13: { x: 400, y: 350 }, 14: { x: 600, y: 350 },
+                15: { x: 800, y: 350 }
+            };
+
+            for (let i = 1; i <= NUM_BUSES; i++) {
+                busCoordinates.push({ id: i, x: busCoordsMap[i].x, y: busCoordsMap[i].y });
+            }
+            
+            // 3. Line/Branch Data Initialization 
+            const allConnections = [
+                // 69kV links
+                { from: 1, to: 2 }, { from: 1, to: 3 }, { from: 2, to: 4 }, { from: 3, to: 4 }, 
+                { from: 1, to: 4 }, { from: 2, to: 3 }, 
+                
+                // Inter-level links
+                { from: 3, to: 7 }, { from: 4, to: 8 }, { from: 7, to: 6 }, { from: 8, to: 5 }, 
+                { from: 9, to: 14 }, { from: 1, to: 11 }, { from: 2, to: 15 },
+                
+                // 34.5kV links
+                { from: 7, to: 9 }, { from: 7, to: 10 }, { from: 8, to: 9 }, { from: 8, to: 10 }, 
+                { from: 7, to: 8 }, { from: 9, to: 10 }, 
+                
+                // 13.8kV Distribution Feeder Links
+                { from: 5, to: 11 }, { from: 5, to: 6 }, { from: 6, to: 12 }, { from: 6, to: 13 }, 
+                { from: 11, to: 12 }, { from: 12, to: 13 }, { from: 13, to: 14 }, { from: 14, to: 15 },
+                { from: 5, to: 12 }, { from: 11, to: 6 }, 
+                
+            ].slice(0, NUM_LINES); 
+
+            allConnections.forEach((conn, index) => {
+                const [fromBus, toBus] = [conn.from, conn.to];
+                const fromKv = busData.find(b => b.id === fromBus).kv_level;
+                const toKv = busData.find(b => b.id === toBus).kv_level;
+                const lineKv = Math.max(fromKv, toKv);
+                
+                const acsrType = ACSR_TYPES[Math.floor(Math.random() * ACSR_TYPES.length)];
+                
+                const Z_BASE_KV = calculateZBase(lineKv);
+                const assumedLengthKm = 5;
+
+                const R_pu_ohm = acsrType.R_DC * assumedLengthKm;
+                const R_pu = parseFloat((R_pu_ohm / Z_BASE_KV).toFixed(6));
+                const X_pu = parseFloat((R_pu * acsrType.X_R_ratio).toFixed(6));
+
+                lineData.push({
+                    id: index + 1,
+                    from: fromBus,
+                    to: toBus,
+                    R_pu: R_pu, 
+                    X_pu: X_pu, 
+                    R_user: R_pu,
+                    X_user: X_pu,
+                    Z_pu: Math.sqrt(R_pu * R_pu + X_pu * X_pu),
+                    wireType: acsrType.code,
+                    active: true,
+                    breakerModel: BREAKER_MODELS[Math.floor(Math.random() * BREAKER_MODELS.length)],
+                    recloserModel: ANSI_RELAYS[Math.floor(Math.random() * ANSI_RELAYS.length)],
+                    isWireAdequate: true, 
+                    recommendedWire: null 
+                });
+            });
+            
+            // Store initial state for N-1 reset
+            originalLineData = JSON.parse(JSON.stringify(lineData));
+
+            // Update UI panels with initialized data
+            displayLineConfiguration();
+            displayBusEditing();
+            calculateSystemCosts(busData.map(b => ({ id: b.id, V: b.V_result })));
+        }
+
+        /**
+         * Recalculates R_pu and X_pu for a line when wire type is changed.
+         */
+        function recalculateLineImpedance(lineId, newWireType) {
+            const line = lineData.find(l => l.id === lineId);
+            const acsrType = ACSR_TYPES.find(t => t.code === newWireType);
+            
+            const fromKv = busData.find(b => b.id === line.from).kv_level;
+            const toKv = busData.find(b => b.id === line.to).kv_level;
+            const lineKv = Math.max(fromKv, toKv); 
+
+            const Z_BASE_KV = calculateZBase(lineKv);
+            const assumedLengthKm = 5; 
+
+            if (line && acsrType) {
+                const R_pu_ohm = acsrType.R_DC * assumedLengthKm;
+                const R_pu = parseFloat((R_pu_ohm / Z_BASE_KV).toFixed(6));
+                const X_pu = parseFloat((R_pu * acsrType.X_R_ratio).toFixed(6));
+
+                line.R_pu = R_pu;
+                line.X_pu = X_pu;
+                line.R_user = R_pu;
+                line.X_user = X_pu;
+                line.Z_pu = Math.sqrt(line.R_user * line.R_user + line.X_user * line.X_user);
+                line.wireType = newWireType;
+            }
+        }
+
+        /**
+         * Updates line or bus parameters based on user input.
+         */
+        function updateSystemParameter(id, key, value) {
+            const numValue = parseFloat(value);
+            
+            // Handle Bus Parameters
+            if (key === 'P_gen_base' || key === 'V' || key === 'P_load_base' || key === 'Q_load_base' || key === 'DR_reduction' || key === 'capacitor_mvar') {
+                const bus = busData.find(b => b.id === id);
+                if (bus && !isNaN(numValue)) {
+                    if (key === 'capacitor_mvar') {
+                        // Clamp capacitor MVAR to max
+                        bus[key] = Math.max(0, Math.min(bus.capacitor_mvar_max, numValue));
+                    } else {
+                        bus[key] = numValue;
+                    }
+                }
+            } else if (key === 'DG_status' || key === 'DG_Q_mode') {
+                 const bus = busData.find(b => b.id === id);
+                 if (bus) {
+                     bus[key] = value;
+                 }
+            // Handle Line Parameters
+            } else {
+                const line = lineData.find(l => l.id === id);
+                if (!line) return;
+
+                if (key === 'R_user' || key === 'X_user') {
+                    if (!isNaN(numValue)) {
+                        line[key] = numValue;
+                        line.Z_pu = Math.sqrt(line.R_user * line.R_user + line.X_user * line.X_user);
+                    }
+                } else if (key === 'wireType') {
+                    recalculateLineImpedance(id, value);
+                    displayLineConfiguration(); 
+                    displayNetworkTopology(lfResults);
+                } else if (key === 'from' || key === 'to') {
+                    const busId = parseInt(value);
+                    if (busId >= 1 && busId <= NUM_BUSES) {
+                        line[key] = busId;
+                        displayNetworkTopology(lfResults);
+                    }
+                } else if (key === 'breakerModel' || key === 'recloserModel') {
+                     line[key] = value;
+                }
+            }
+        }
+        
+        /** Toggles the active status of a line. */
+        function toggleLineActive(lineId, isActive) {
+            const line = lineData.find(l => l.id === lineId);
+            if (line) {
+                line.active = isActive;
+            }
+            // Ensure N-1 is deselected if line status is manually toggled
+            document.getElementById('nMinus1').checked = false;
+        }
+
+        // --- FINAL INITIALIZATION ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // 1. Initialize data model
+            initializeSystemData();
+            // 2. Set default fault bus
+            selectFaultBus(10);
+            // 3. Draw initial empty network map
+            displayNetworkTopology();
+            // 4. Update the Load Profile dropdown to reflect initial state
+            document.getElementById('loadProfileTime').value = CURRENT_LOAD_PROFILE;
+            // 5. Update DG Intermittency text
+            document.getElementById('dgIntermittencyValue').textContent = `${DG_CAPACITY_FACTOR * 100}%`;
+            
+            // Fix: Initialize ARIA labels for tabs
+            document.getElementById('tabLF').setAttribute('aria-selected', 'true');
+            document.getElementById('tabLFIterative').setAttribute('aria-selected', 'false');
+            document.getElementById('tabSC').setAttribute('aria-selected', 'false');
+            document.getElementById('tabCompliance').setAttribute('aria-selected', 'false');
+            
         });
     </script>
 </body>
